@@ -23,6 +23,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.player.Player;
 import noppes.npcs.client.renderer.RenderNPCInterface;
 import noppes.npcs.CustomItems;
@@ -230,6 +231,7 @@ public final class AnimatedNpcRenderBridge {
         String state = "model=" + holder.modelId
                 + ",displayVisible=" + npc.display.getVisible()
                 + ",npcInvisible=" + npc.isInvisible()
+                + ",invisibilityEffect=" + npc.hasEffect(MobEffects.INVISIBILITY)
                 + ",npcInvisibleTo=" + (viewer != null && npc.isInvisibleTo(viewer))
                 + ",displayVisibleTo=" + (viewer != null && npc.display.isVisibleTo(viewer))
                 + ",resolved=" + visibility
@@ -264,6 +266,11 @@ public final class AnimatedNpcRenderBridge {
     private static Visibility visibility(EntityNPCInterface npc, Player viewer) {
         int displayMode = npc.display.getVisible();
         boolean hasWand = viewer != null && viewer.getMainHandItem().getItem() == CustomItems.wand;
+        // EntityNPCInterface overrides isInvisible() for its display setting, so it does not
+        // expose vanilla's invisibility-effect flag. Read the potion effect explicitly.
+        if (npc.hasEffect(MobEffects.INVISIBILITY)) {
+            return hasWand ? Visibility.PARTIAL : Visibility.HIDDEN;
+        }
         if (displayMode == 2) {
             return Visibility.PARTIAL;
         }

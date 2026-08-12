@@ -31,7 +31,7 @@ public abstract class EntityNPCInterfaceMixin extends PathfinderMob {
      * CustomNPCs overrides the obfuscated Mob#doHurtTarget method directly. Injecting into
      * Mob#doHurtTarget therefore never sees NPC melee hits; this must target the CNPC override.
      */
-    @Inject(method = "m_7327_", at = @At("HEAD"), cancellable = true, remap = false)
+    @Inject(method = {"m_7327_", "doHurtTarget"}, at = @At("HEAD"), cancellable = true, remap = false)
     private void customnpcsYsmCompat$queueMeleeHit(Entity target,
                                                    CallbackInfoReturnable<Boolean> cir) {
         EntityNPCInterface npc = (EntityNPCInterface) (Object) this;

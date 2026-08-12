@@ -14,7 +14,7 @@
     "client.GuiCreationEntitiesMixin",
     "client.GuiMpmPartMixin",
     "client.MpmPartAbstractClientMixin",
-    "client.YsmRenderPipelineMixin",
+    "client.YsmLivingRenderPipelineMixin",
     "client.YsmGenericRendererMixin"
   ],
   "injectors": {
