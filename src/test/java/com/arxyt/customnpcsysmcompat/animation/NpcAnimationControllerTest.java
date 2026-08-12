@@ -34,6 +34,7 @@ class NpcAnimationControllerTest {
         NpcAnimationFrame death = controller.update(inputAt(110, true, 1, 0, 0.0F, false));
         assertEquals(1, death.deathTime());
         assertEquals(5, controller.update(inputAt(114, true, 1, 0, 0.0F, false)).deathTime());
+        assertEquals(20, controller.update(inputAt(150, true, 50, 0, 0.0F, false)).deathTime());
     }
 
     private static NpcAnimationInput input(boolean dead, int death, int hurt, float attack, boolean walk) {

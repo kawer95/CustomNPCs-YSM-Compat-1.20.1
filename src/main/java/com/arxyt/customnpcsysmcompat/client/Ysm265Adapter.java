@@ -5,7 +5,9 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.capabilities.Capability;
 
 import java.lang.reflect.Field;
@@ -22,6 +24,7 @@ public final class Ysm265Adapter {
     private static final String REGISTRY = "com.elfmcys.yesstevemodel.o0OooO00ooo0OO000O0OoOoO";
     private static final String PLAYER_CAP = "com.elfmcys.yesstevemodel.O0OooOo0oOOoOoOoOooO000o";
     private static final String PLAYER_ANIMATABLE = "com.elfmcys.yesstevemodel.o0OOO0o0o0OOo000oO00o00O";
+    private static final String YSM_RENDER_TYPE = "com.elfmcys.yesstevemodel.o0oOo0ooO00oOoooOOOoOOo0";
     private static final String OBF = "Oo0Oo0o00O00Oo0OOoOOoooo";
     private static final AtomicBoolean ERROR_REPORTED = new AtomicBoolean();
 
@@ -104,6 +107,26 @@ public final class Ysm265Adapter {
         }
     }
 
+    public static RenderType selectRenderType(ResourceLocation texture, boolean visible,
+                                              boolean glowing, boolean customLayer,
+                                              boolean partialVisibility) {
+        if (partialVisibility && visible && !glowing) {
+            return RenderType.entityTranslucent(texture);
+        }
+        if (visible) {
+            if (!customLayer) {
+                return RenderType.entityCutoutNoCull(texture);
+            }
+            try {
+                return (RenderType) bindings().customRenderType.invoke(null, texture);
+            } catch (Throwable error) {
+                report(error);
+                return RenderType.entityCutoutNoCull(texture);
+            }
+        }
+        return glowing ? RenderType.outline(texture) : null;
+    }
+
     private static Bindings bindings() throws ReflectiveOperationException {
         Bindings result = bindings;
         if (result != null) {
@@ -121,7 +144,9 @@ public final class Ysm265Adapter {
                 Class<?> animatable = Class.forName(PLAYER_ANIMATABLE);
                 Method setModel = animatable.getMethod(OBF, String.class, String.class);
                 Method isValid = animatable.getMethod("o0ooooOo0o000OOo0oO00OoO");
-                bindings = new Bindings(modelRegistry, capability, setModel, isValid);
+                Method customRenderType = Class.forName(YSM_RENDER_TYPE)
+                        .getMethod(OBF, ResourceLocation.class);
+                bindings = new Bindings(modelRegistry, capability, setModel, isValid, customRenderType);
             }
             return bindings;
         }
@@ -145,6 +170,6 @@ public final class Ysm265Adapter {
     }
 
     private record Bindings(Method modelRegistry, Capability<?> playerCapability,
-                            Method setPlayerModel, Method isPlayerModelValid) {
+                            Method setPlayerModel, Method isPlayerModelValid, Method customRenderType) {
     }
 }

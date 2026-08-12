@@ -20,7 +20,7 @@ public final class NpcAnimationController {
                 ? Math.max(0.0F, Math.min(1.0F, input.attackProgress())) : 0.0F;
         int hurtTime = state == NpcAnimationState.HURT ? Math.max(1, input.hurtTime()) : 0;
         int deathTime = state == NpcAnimationState.DEATH
-                ? Math.max(Math.max(1, input.deathTime()), elapsed + 1) : 0;
+                ? Math.min(20, Math.max(Math.max(1, input.deathTime()), elapsed + 1)) : 0;
 
         return new NpcAnimationFrame(state, elapsed, walkSpeed, attackProgress,
                 hurtTime, deathTime, input.bodyYaw(), input.headYaw());

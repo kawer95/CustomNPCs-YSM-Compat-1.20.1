@@ -19,11 +19,11 @@ import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.Util;
-import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.player.Player;
 import noppes.npcs.client.renderer.RenderNPCInterface;
 import noppes.npcs.entity.EntityNPCInterface;
 
@@ -60,8 +60,8 @@ public final class AnimatedNpcRenderBridge {
             return false;
         }
 
-        // The proxy is a separate player entity, so vanilla/YSM cannot infer the
-        // CustomNPC visibility rules from it. Suppress the replacement explicitly.
+        // A hidden corpse has no renderer call in stock CustomNPCs. Explicitly
+        // suppress it here as well because the replacement hook is deeper.
         if (!preview && shouldHide(npc)) {
             return true;
         }
@@ -82,15 +82,20 @@ public final class AnimatedNpcRenderBridge {
             }
 
             int size = npc.display.getSize();
+            Player viewer = Minecraft.getInstance().player;
+            Visibility visibility = preview ? Visibility.VISIBLE : visibility(npc, viewer);
+            boolean partialVisibility = visibility == Visibility.PARTIAL;
             poseStack.pushPose();
+            ProxyVisibilityContext.begin(partialVisibility);
             boolean rendered;
             try {
                 poseStack.scale(npc.scaleX / 5.0F * size, npc.scaleY / 5.0F * size,
                         npc.scaleZ / 5.0F * size);
                 float renderYaw = holder.orientation.interpolatedBodyYaw(renderPartialTick);
                 rendered = Ysm265Adapter.renderPlayer(holder.player, renderYaw, renderPartialTick,
-                        poseStack, buffers, packedLight);
+                        poseStack, ProxyVisibilityContext.applyAlpha(buffers), packedLight);
             } finally {
+                ProxyVisibilityContext.end();
                 poseStack.popPose();
             }
             if (!rendered) {
@@ -119,7 +124,7 @@ public final class AnimatedNpcRenderBridge {
         UUID id = UUID.nameUUIDFromBytes(("customnpcs-ysm:" + original.getUUID())
                 .getBytes(StandardCharsets.UTF_8));
         String name = "YsmNpc" + Math.abs(original.getId() % 1_000_000);
-        AnimatedProxy created = new AnimatedProxy(new RemotePlayer(level, new GameProfile(id, name)));
+        AnimatedProxy created = new AnimatedProxy(new YsmNpcProxyPlayer(level, new GameProfile(id, name)));
         cache.put(original, created);
         PROXY_PLAYERS.put(created.player, Boolean.TRUE);
         return created;
@@ -127,7 +132,16 @@ public final class AnimatedNpcRenderBridge {
 
     private static void sync(AnimatedProxy holder, EntityNPCInterface npc, float partialTick,
                              boolean preview, int animationTick) {
-        RemotePlayer player = holder.player;
+        YsmNpcProxyPlayer player = holder.player;
+        boolean dead = !preview && (npc.isDeadOrDying() || npc.isKilled());
+        if (dead) {
+            if (holder.deathStartedAt == Integer.MIN_VALUE || animationTick < holder.deathStartedAt) {
+                holder.deathStartedAt = animationTick;
+            }
+            animationTick = Math.min(animationTick, holder.deathStartedAt + 20);
+        } else {
+            holder.deathStartedAt = Integer.MIN_VALUE;
+        }
         NpcMovementTracker.Sample movement = preview ? NpcMovementTracker.Sample.STOPPED
                 : holder.movementTracker.sample(npc.tickCount, npc.getX(), npc.getZ());
         MeleeAttackSync.Sample attack = preview ? MeleeAttackSync.Sample.INACTIVE
@@ -141,7 +155,7 @@ public final class AnimatedNpcRenderBridge {
                 : holder.orientationTracker.sample(npc.tickCount, targetBodyYaw, npc.yHeadRot);
         holder.orientation = orientation;
         NpcAnimationInput input = new NpcAnimationInput(animationTick,
-                !preview && (npc.isDeadOrDying() || npc.isKilled()), preview ? 0 : npc.deathTime,
+                dead, preview ? 0 : Math.min(20, npc.deathTime),
                 preview ? 0 : npc.hurtTime, attack.interpolatedProgress(), movement.walking(), movement.speed(),
                 orientation.bodyYaw(), orientation.headYaw());
         NpcAnimationFrame frame = holder.controller.update(input);
@@ -164,8 +178,7 @@ public final class AnimatedNpcRenderBridge {
             player.walkAnimation.update(frame.walkSpeed(), 1.0F);
             holder.lastSyncedTick = input.tick();
         }
-        boolean dead = input.dead();
-        player.setHealth(dead ? 0.0F : proxyHealth(npc, player));
+        player.setHealth(dead ? 0.0F : proxyHealth(player));
         player.getFoodData().setFoodLevel(20);
         player.getFoodData().setSaturation(20.0F);
         player.hurtTime = dead ? 0 : frame.hurtTime();
@@ -180,6 +193,14 @@ public final class AnimatedNpcRenderBridge {
         player.setSprinting(false);
         player.setShiftKeyDown(false);
         player.setSwimming(false);
+        player.stopUsingItem();
+
+        Minecraft minecraft = Minecraft.getInstance();
+        Player viewer = minecraft.player;
+        Visibility visibility = preview ? Visibility.VISIBLE : visibility(npc, viewer);
+        player.setCompatVisibility(visibility != Visibility.VISIBLE,
+                visibility == Visibility.HIDDEN);
+        player.setGlowingTag(!preview && npc.isCurrentlyGlowing());
 
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             player.setItemSlot(slot, npc.getItemBySlot(slot));
@@ -190,20 +211,23 @@ public final class AnimatedNpcRenderBridge {
     }
 
     private static boolean shouldHide(EntityNPCInterface npc) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (npc.isInvisible()) {
-            return true;
-        }
-        if (minecraft.player != null && !npc.display.isVisibleTo(minecraft.player)) {
-            return true;
-        }
         return npc.isKilled() && npc.stats.hideKilledBody && npc.deathTime > 20;
     }
 
-    private static float proxyHealth(EntityNPCInterface npc, RemotePlayer player) {
-        float npcMax = Math.max(1.0F, npc.getMaxHealth());
-        float ratio = Mth.clamp(npc.getHealth() / npcMax, 0.001F, 1.0F);
-        return Math.max(0.001F, ratio * player.getMaxHealth());
+    private static Visibility visibility(EntityNPCInterface npc, Player viewer) {
+        int displayMode = npc.display.getVisible();
+        if (displayMode == 2) {
+            return Visibility.PARTIAL;
+        }
+        if (displayMode == 1) {
+            return viewer != null && !npc.isInvisibleTo(viewer)
+                    ? Visibility.PARTIAL : Visibility.HIDDEN;
+        }
+        return npc.isInvisible() ? Visibility.HIDDEN : Visibility.VISIBLE;
+    }
+
+    private static float proxyHealth(RemotePlayer player) {
+        return player.getMaxHealth();
     }
 
     private static MeleeAttackSync.Sample vanillaSwingSample(EntityNPCInterface npc, float partialTick) {
@@ -239,6 +263,10 @@ public final class AnimatedNpcRenderBridge {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void renderName(EntityNPCInterface npc, PoseStack poseStack,
                                    MultiBufferSource buffers, int packedLight) {
+        Player viewer = Minecraft.getInstance().player;
+        if (visibility(npc, viewer) == Visibility.HIDDEN) {
+            return;
+        }
         EntityRenderer<?> renderer = Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(npc);
         if (renderer instanceof RenderNPCInterface npcRenderer) {
             npcRenderer.renderNameTag(npc, npc.getDisplayName(), poseStack, buffers, packedLight);
@@ -265,7 +293,7 @@ public final class AnimatedNpcRenderBridge {
     }
 
     private static final class AnimatedProxy {
-        private final RemotePlayer player;
+        private final YsmNpcProxyPlayer player;
         private final NpcAnimationController controller = new NpcAnimationController();
         private final NpcMovementTracker movementTracker = new NpcMovementTracker();
         private final NpcOrientationTracker orientationTracker = new NpcOrientationTracker();
@@ -273,11 +301,37 @@ public final class AnimatedNpcRenderBridge {
         private int lastSyncedTick = Integer.MIN_VALUE;
         private int lastAttackDebugTick = Integer.MIN_VALUE;
         private boolean attackDebugActive;
+        private int deathStartedAt = Integer.MIN_VALUE;
         private String modelId = "";
 
-        private AnimatedProxy(RemotePlayer player) {
+        private AnimatedProxy(YsmNpcProxyPlayer player) {
             this.player = player;
         }
 
+    }
+
+    /** Reproduces CustomNPCs' full/partial/wand visibility decision for YSM. */
+    private static final class YsmNpcProxyPlayer extends RemotePlayer {
+        private boolean compatInvisibleToViewer;
+
+        private YsmNpcProxyPlayer(ClientLevel level, GameProfile profile) {
+            super(level, profile);
+        }
+
+        private void setCompatVisibility(boolean invisible, boolean invisibleToViewer) {
+            setInvisible(invisible);
+            compatInvisibleToViewer = invisibleToViewer;
+        }
+
+        @Override
+        public boolean isInvisibleTo(Player viewer) {
+            return compatInvisibleToViewer;
+        }
+    }
+
+    private enum Visibility {
+        VISIBLE,
+        PARTIAL,
+        HIDDEN
     }
 }

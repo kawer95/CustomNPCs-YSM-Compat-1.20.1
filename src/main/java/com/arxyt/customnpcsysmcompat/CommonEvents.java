@@ -1,11 +1,13 @@
 package com.arxyt.customnpcsysmcompat;
 
+import com.arxyt.customnpcsysmcompat.animation.DelayedMeleeAttack;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
+import net.minecraftforge.event.entity.living.LivingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.items.IItemHandlerModifiable;
 import net.minecraftforge.items.IItemHandler;
@@ -34,4 +36,10 @@ public final class CommonEvents {
         }
     }
 
+    @SubscribeEvent
+    public void tickDelayedMeleeAttack(LivingEvent.LivingTickEvent event) {
+        if (event.getEntity() instanceof EntityNPCInterface npc && !npc.level().isClientSide) {
+            DelayedMeleeAttack.tick(npc);
+        }
+    }
 }
