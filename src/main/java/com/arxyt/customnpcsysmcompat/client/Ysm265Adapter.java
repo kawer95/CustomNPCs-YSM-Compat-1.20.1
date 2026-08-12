@@ -24,6 +24,7 @@ public final class Ysm265Adapter {
     private static final String REGISTRY = "com.elfmcys.yesstevemodel.o0OooO00ooo0OO000O0OoOoO";
     private static final String PLAYER_CAP = "com.elfmcys.yesstevemodel.O0OooOo0oOOoOoOoOooO000o";
     private static final String PLAYER_ANIMATABLE = "com.elfmcys.yesstevemodel.o0OOO0o0o0OOo000oO00o00O";
+    private static final String PLAYER_SYNC_DATA = "com.elfmcys.yesstevemodel.ooOO000o0O0OOOoO0Oo0o0Oo";
     private static final String YSM_RENDER_TYPE = "com.elfmcys.yesstevemodel.o0oOo0ooO00oOoooOOOoOOo0";
     private static final String OBF = "Oo0Oo0o00O00Oo0OOoOOoooo";
     private static final AtomicBoolean ERROR_REPORTED = new AtomicBoolean();
@@ -89,6 +90,22 @@ public final class Ysm265Adapter {
         }
     }
 
+    /** Normalizes YSM's own fake-player sync cache; it otherwise defaults food_level to zero. */
+    public static int normalizePlayerState(RemotePlayer player) {
+        try {
+            Bindings b = bindings();
+            Optional<Object> value = playerAnimatable(player, b);
+            if (value.isPresent()) {
+                Object syncData = b.getPlayerSyncData.invoke(value.get());
+                b.foodLevel.setInt(syncData, 20);
+                return b.foodLevel.getInt(syncData);
+            }
+        } catch (Throwable error) {
+            report(error);
+        }
+        return -1;
+    }
+
     @SuppressWarnings("unchecked")
     private static Optional<Object> playerAnimatable(RemotePlayer player, Bindings bindings) {
         return (Optional<Object>) player.getCapability((Capability<Object>) bindings.playerCapability).resolve();
@@ -148,9 +165,14 @@ public final class Ysm265Adapter {
                 Class<?> animatable = Class.forName(PLAYER_ANIMATABLE);
                 Method setModel = animatable.getMethod(OBF, String.class, String.class);
                 Method isValid = animatable.getMethod("o0ooooOo0o000OOo0oO00OoO");
+                Method getPlayerSyncData = animatable.getMethod(OBF);
+                Field foodLevel = Class.forName(PLAYER_SYNC_DATA)
+                        .getDeclaredField("o0OOO0o0o0OOo000oO00o00O");
+                foodLevel.setAccessible(true);
                 Method customRenderType = Class.forName(YSM_RENDER_TYPE)
                         .getMethod(OBF, ResourceLocation.class);
-                bindings = new Bindings(modelRegistry, capability, setModel, isValid, customRenderType);
+                bindings = new Bindings(modelRegistry, capability, setModel, isValid,
+                        getPlayerSyncData, foodLevel, customRenderType);
             }
             return bindings;
         }
@@ -174,6 +196,7 @@ public final class Ysm265Adapter {
     }
 
     private record Bindings(Method modelRegistry, Capability<?> playerCapability,
-                            Method setPlayerModel, Method isPlayerModelValid, Method customRenderType) {
+                            Method setPlayerModel, Method isPlayerModelValid,
+                            Method getPlayerSyncData, Field foodLevel, Method customRenderType) {
     }
 }

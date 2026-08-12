@@ -11,10 +11,12 @@
     "MobMeleeAttackMixin"
   ],
   "client": [
+    "client.CompositeRenderTypeAccessor",
+    "client.CompositeStateAccessor",
+    "client.EmptyTextureStateShardAccessor",
     "client.GuiCreationEntitiesMixin",
     "client.GuiMpmPartMixin",
     "client.MpmPartAbstractClientMixin",
-    "client.YsmRenderTypeMixin",
     "client.YsmGenericRendererMixin"
   ],
   "injectors": {

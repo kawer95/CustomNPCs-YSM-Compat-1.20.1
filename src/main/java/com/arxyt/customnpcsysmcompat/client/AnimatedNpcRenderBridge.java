@@ -178,9 +178,13 @@ public final class AnimatedNpcRenderBridge {
             player.walkAnimation.update(frame.walkSpeed(), 1.0F);
             holder.lastSyncedTick = input.tick();
         }
-        player.setHealth(dead ? 0.0F : proxyHealth(player));
+        // Report death to YSM without health=0/deathTime>0, because either value can select
+        // the vanilla red corpse overlay. The proxy override preserves YSM's death animation.
+        player.setCompatDead(dead);
+        player.setHealth(proxyHealth(player));
         player.getFoodData().setFoodLevel(20);
         player.getFoodData().setSaturation(20.0F);
+        holder.ysmFoodLevel = Ysm265Adapter.normalizePlayerState(player);
         player.hurtTime = dead ? 0 : frame.hurtTime();
         // YSM selects its death animation from isDeadOrDying() (health == 0).
         // Keeping vanilla deathTime non-zero adds the red corpse presentation;
@@ -226,7 +230,9 @@ public final class AnimatedNpcRenderBridge {
                 + ",proxyInvisible=" + player.isInvisible()
                 + ",proxyInvisibleTo=" + (viewer != null && player.isInvisibleTo(viewer))
                 + ",food=" + player.getFoodData().getFoodLevel()
+                + ",ysmFood=" + holder.ysmFoodLevel
                 + ",health=" + player.getHealth() + "/" + player.getMaxHealth()
+                + ",deadOrDying=" + player.isDeadOrDying()
                 + ",hurtTime=" + player.hurtTime
                 + ",deathTime=" + player.deathTime
                 + ",pose=" + player.getPose()
@@ -339,6 +345,7 @@ public final class AnimatedNpcRenderBridge {
         private boolean attackDebugActive;
         private int deathStartedAt = Integer.MIN_VALUE;
         private String lastProxyDebugState = "";
+        private int ysmFoodLevel = -1;
         private String modelId = "";
 
         private AnimatedProxy(YsmNpcProxyPlayer player) {
@@ -350,6 +357,7 @@ public final class AnimatedNpcRenderBridge {
     /** Reproduces CustomNPCs' full/partial/wand visibility decision for YSM. */
     private static final class YsmNpcProxyPlayer extends RemotePlayer {
         private boolean compatInvisibleToViewer;
+        private boolean compatDead;
 
         private YsmNpcProxyPlayer(ClientLevel level, GameProfile profile) {
             super(level, profile);
@@ -358,6 +366,15 @@ public final class AnimatedNpcRenderBridge {
         private void setCompatVisibility(boolean invisible, boolean invisibleToViewer) {
             setInvisible(invisible);
             compatInvisibleToViewer = invisibleToViewer;
+        }
+
+        private void setCompatDead(boolean dead) {
+            compatDead = dead;
+        }
+
+        @Override
+        public boolean isDeadOrDying() {
+            return compatDead || super.isDeadOrDying();
         }
 
         @Override
