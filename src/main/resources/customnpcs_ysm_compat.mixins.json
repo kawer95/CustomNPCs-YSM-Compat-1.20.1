@@ -16,6 +16,7 @@
     "client.GuiCreationEntitiesMixin",
     "client.GuiMpmPartMixin",
     "client.MpmPartAbstractClientMixin",
+    "client.TaczBulletRendererMixin",
     "client.YsmLivingRenderPipelineMixin",
     "client.YsmGenericRendererMixin"
   ],
