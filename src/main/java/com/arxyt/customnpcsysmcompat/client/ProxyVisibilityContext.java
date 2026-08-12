@@ -1,23 +1,32 @@
 package com.arxyt.customnpcsysmcompat.client;
 
+import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.resources.ResourceLocation;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /** Render-local visibility state consumed by the YSM 2.6.5 render-type mixin. */
 public final class ProxyVisibilityContext {
     private static final float GHOST_ALPHA = 0.15F;
     private static final ThreadLocal<Boolean> PARTIAL = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Integer> NPC_ID = ThreadLocal.withInitial(() -> -1);
+    private static final Map<Integer, String> LAST_RENDER_STATE = new HashMap<>();
 
     private ProxyVisibilityContext() {
     }
 
-    public static void begin(boolean partial) {
+    public static void begin(boolean partial, int npcId) {
         PARTIAL.set(partial);
+        NPC_ID.set(npcId);
     }
 
     public static void end() {
         PARTIAL.remove();
+        NPC_ID.remove();
     }
 
     public static boolean partial() {
@@ -29,6 +38,30 @@ public final class ProxyVisibilityContext {
             return source;
         }
         return renderType -> new AlphaVertexConsumer(source.getBuffer(renderType), GHOST_ALPHA);
+    }
+
+    public static void traceRenderType(ResourceLocation texture, boolean ysmVisible,
+                                       boolean glowing, boolean customLayer, RenderType result) {
+        int npcId = NPC_ID.get();
+        if (npcId < 0) {
+            return;
+        }
+        String state = "partial=" + partial() + ",ysmVisible=" + ysmVisible
+                + ",glowing=" + glowing + ",customLayer=" + customLayer
+                + ",result=" + (result == null ? "null" : result.toString());
+        synchronized (LAST_RENDER_STATE) {
+            if (state.equals(LAST_RENDER_STATE.put(npcId, state))) {
+                return;
+            }
+        }
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[YSM-VIS-TRACE][RENDER-TYPE] npcId={} texture={} {}", npcId, texture, state);
+    }
+
+    public static void clearDebugState() {
+        synchronized (LAST_RENDER_STATE) {
+            LAST_RENDER_STATE.clear();
+        }
     }
 
     private static final class AlphaVertexConsumer implements VertexConsumer {

@@ -110,21 +110,25 @@ public final class Ysm265Adapter {
     public static RenderType selectRenderType(ResourceLocation texture, boolean visible,
                                               boolean glowing, boolean customLayer,
                                               boolean partialVisibility) {
+        RenderType result;
         if (partialVisibility && visible && !glowing) {
-            return RenderType.entityTranslucent(texture);
-        }
-        if (visible) {
+            result = RenderType.entityTranslucent(texture);
+        } else if (visible) {
             if (!customLayer) {
-                return RenderType.entityCutoutNoCull(texture);
+                result = RenderType.entityCutoutNoCull(texture);
+            } else {
+                try {
+                    result = (RenderType) bindings().customRenderType.invoke(null, texture);
+                } catch (Throwable error) {
+                    report(error);
+                    result = RenderType.entityCutoutNoCull(texture);
+                }
             }
-            try {
-                return (RenderType) bindings().customRenderType.invoke(null, texture);
-            } catch (Throwable error) {
-                report(error);
-                return RenderType.entityCutoutNoCull(texture);
-            }
+        } else {
+            result = glowing ? RenderType.outline(texture) : null;
         }
-        return glowing ? RenderType.outline(texture) : null;
+        ProxyVisibilityContext.traceRenderType(texture, visible, glowing, customLayer, result);
+        return result;
     }
 
     private static Bindings bindings() throws ReflectiveOperationException {

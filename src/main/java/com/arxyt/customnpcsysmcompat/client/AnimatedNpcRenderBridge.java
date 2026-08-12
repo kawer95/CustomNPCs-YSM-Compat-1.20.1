@@ -86,7 +86,7 @@ public final class AnimatedNpcRenderBridge {
             Visibility visibility = preview ? Visibility.VISIBLE : visibility(npc, viewer);
             boolean partialVisibility = visibility == Visibility.PARTIAL;
             poseStack.pushPose();
-            ProxyVisibilityContext.begin(partialVisibility);
+            ProxyVisibilityContext.begin(partialVisibility, npc.getId());
             boolean rendered;
             try {
                 poseStack.scale(npc.scaleX / 5.0F * size, npc.scaleY / 5.0F * size,
@@ -210,7 +210,39 @@ public final class AnimatedNpcRenderBridge {
         }
         if (!preview) {
             GunCompat.syncClientState(npc, player);
+            traceProxyState(holder, npc, player, visibility);
         }
+    }
+
+    private static void traceProxyState(AnimatedProxy holder, EntityNPCInterface npc,
+                                        YsmNpcProxyPlayer player, Visibility visibility) {
+        Player viewer = Minecraft.getInstance().player;
+        String state = "model=" + holder.modelId
+                + ",displayVisible=" + npc.display.getVisible()
+                + ",npcInvisible=" + npc.isInvisible()
+                + ",npcInvisibleTo=" + (viewer != null && npc.isInvisibleTo(viewer))
+                + ",displayVisibleTo=" + (viewer != null && npc.display.isVisibleTo(viewer))
+                + ",resolved=" + visibility
+                + ",proxyInvisible=" + player.isInvisible()
+                + ",proxyInvisibleTo=" + (viewer != null && player.isInvisibleTo(viewer))
+                + ",food=" + player.getFoodData().getFoodLevel()
+                + ",health=" + player.getHealth() + "/" + player.getMaxHealth()
+                + ",hurtTime=" + player.hurtTime
+                + ",deathTime=" + player.deathTime
+                + ",pose=" + player.getPose()
+                + ",usingItem=" + player.isUsingItem()
+                + ",usedHand=" + player.getUsedItemHand()
+                + ",mainItem=" + player.getMainHandItem().getItem()
+                + ",offItem=" + player.getOffhandItem().getItem()
+                + ",sneaking=" + player.isShiftKeyDown()
+                + ",swimming=" + player.isSwimming()
+                + ",sprinting=" + player.isSprinting();
+        if (state.equals(holder.lastProxyDebugState)) {
+            return;
+        }
+        holder.lastProxyDebugState = state;
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[YSM-PROXY-TRACE] npcId={} tick={} {}", npc.getId(), npc.tickCount, state);
     }
 
     private static boolean shouldHide(EntityNPCInterface npc) {
@@ -282,6 +314,7 @@ public final class AnimatedNpcRenderBridge {
         PROXY_PLAYERS.clear();
         PreviewOverrides.clearAll();
         MeleeAttackSync.clear();
+        ProxyVisibilityContext.clearDebugState();
     }
 
     public static boolean isProxyPlayer(Entity entity) {
@@ -305,6 +338,7 @@ public final class AnimatedNpcRenderBridge {
         private int lastAttackDebugTick = Integer.MIN_VALUE;
         private boolean attackDebugActive;
         private int deathStartedAt = Integer.MIN_VALUE;
+        private String lastProxyDebugState = "";
         private String modelId = "";
 
         private AnimatedProxy(YsmNpcProxyPlayer player) {
