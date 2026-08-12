@@ -182,7 +182,10 @@ public final class AnimatedNpcRenderBridge {
         player.getFoodData().setFoodLevel(20);
         player.getFoodData().setSaturation(20.0F);
         player.hurtTime = dead ? 0 : frame.hurtTime();
-        player.deathTime = frame.deathTime();
+        // YSM selects its death animation from isDeadOrDying() (health == 0).
+        // Keeping vanilla deathTime non-zero adds the red corpse presentation;
+        // the frozen YSM clock already preserves the animation's final frame.
+        player.deathTime = 0;
         boolean attacking = attack.active() && frame.state() == NpcAnimationState.ATTACK;
         player.swinging = attacking;
         player.swingingArm = InteractionHand.MAIN_HAND;

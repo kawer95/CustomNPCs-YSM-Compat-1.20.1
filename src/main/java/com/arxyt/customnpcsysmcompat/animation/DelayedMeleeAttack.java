@@ -10,7 +10,7 @@ import java.util.WeakHashMap;
 
 /** Places the real melee damage on the visible hit frame of the YSM swing. */
 public final class DelayedMeleeAttack {
-    public static final int HIT_DELAY_TICKS = 4;
+    public static final int HIT_DELAY_TICKS = 10;
     private static final Map<EntityNPCInterface, PendingAttack> PENDING =
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final ThreadLocal<Boolean> EXECUTING = ThreadLocal.withInitial(() -> false);
