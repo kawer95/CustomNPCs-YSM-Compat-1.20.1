@@ -25,6 +25,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import noppes.npcs.client.renderer.RenderNPCInterface;
+import noppes.npcs.CustomItems;
 import noppes.npcs.entity.EntityNPCInterface;
 
 import java.nio.charset.StandardCharsets;
@@ -60,6 +61,12 @@ public final class AnimatedNpcRenderBridge {
             return false;
         }
 
+        Player viewer = Minecraft.getInstance().player;
+        Visibility resolvedVisibility = preview ? Visibility.VISIBLE : visibility(npc, viewer);
+        if (resolvedVisibility == Visibility.HIDDEN) {
+            return true;
+        }
+
         // A hidden corpse has no renderer call in stock CustomNPCs. Explicitly
         // suppress it here as well because the replacement hook is deeper.
         if (!preview && shouldHide(npc)) {
@@ -82,9 +89,7 @@ public final class AnimatedNpcRenderBridge {
             }
 
             int size = npc.display.getSize();
-            Player viewer = Minecraft.getInstance().player;
-            Visibility visibility = preview ? Visibility.VISIBLE : visibility(npc, viewer);
-            boolean partialVisibility = visibility == Visibility.PARTIAL;
+            boolean partialVisibility = resolvedVisibility == Visibility.PARTIAL;
             poseStack.pushPose();
             ProxyVisibilityContext.begin(partialVisibility, npc.getId());
             boolean rendered;
@@ -93,7 +98,7 @@ public final class AnimatedNpcRenderBridge {
                         npc.scaleZ / 5.0F * size);
                 float renderYaw = holder.orientation.interpolatedBodyYaw(renderPartialTick);
                 rendered = Ysm265Adapter.renderPlayer(holder.player, renderYaw, renderPartialTick,
-                        poseStack, ProxyVisibilityContext.applyAlpha(buffers), packedLight);
+                        poseStack, buffers, packedLight);
             } finally {
                 ProxyVisibilityContext.end();
                 poseStack.popPose();
@@ -205,8 +210,9 @@ public final class AnimatedNpcRenderBridge {
         Minecraft minecraft = Minecraft.getInstance();
         Player viewer = minecraft.player;
         Visibility visibility = preview ? Visibility.VISIBLE : visibility(npc, viewer);
-        player.setCompatVisibility(visibility != Visibility.VISIBLE,
-                visibility == Visibility.HIDDEN);
+        // Hidden NPCs are suppressed before rendering. A partial proxy must report visible so
+        // YSM reaches its pipeline; the render-local mixin supplies translucency and alpha.
+        player.setCompatVisibility(false, false);
         player.setGlowingTag(!preview && npc.isCurrentlyGlowing());
 
         for (EquipmentSlot slot : EquipmentSlot.values()) {
@@ -257,12 +263,12 @@ public final class AnimatedNpcRenderBridge {
 
     private static Visibility visibility(EntityNPCInterface npc, Player viewer) {
         int displayMode = npc.display.getVisible();
+        boolean hasWand = viewer != null && viewer.getMainHandItem().getItem() == CustomItems.wand;
         if (displayMode == 2) {
             return Visibility.PARTIAL;
         }
         if (displayMode == 1) {
-            return viewer != null && !npc.isInvisibleTo(viewer)
-                    ? Visibility.PARTIAL : Visibility.HIDDEN;
+            return hasWand ? Visibility.PARTIAL : Visibility.HIDDEN;
         }
         return npc.isInvisible() ? Visibility.HIDDEN : Visibility.VISIBLE;
     }

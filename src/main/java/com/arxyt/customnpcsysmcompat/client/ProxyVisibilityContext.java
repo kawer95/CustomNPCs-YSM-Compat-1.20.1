@@ -1,18 +1,12 @@
 package com.arxyt.customnpcsysmcompat.client;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
-import com.arxyt.customnpcsysmcompat.mixin.client.CompositeRenderTypeAccessor;
-import com.arxyt.customnpcsysmcompat.mixin.client.CompositeStateAccessor;
-import com.arxyt.customnpcsysmcompat.mixin.client.EmptyTextureStateShardAccessor;
-import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /** Render-local visibility state consumed by the YSM 2.6.5 render-type mixin. */
@@ -40,50 +34,30 @@ public final class ProxyVisibilityContext {
         return PARTIAL.get();
     }
 
-    public static MultiBufferSource applyAlpha(MultiBufferSource source) {
+    public static float applyModelAlpha(float originalAlpha) {
         if (!partial()) {
-            return source;
+            return originalAlpha;
         }
-        return renderType -> {
-            RenderType blended = translucentVersion(renderType);
-            return new AlphaVertexConsumer(source.getBuffer(blended), GHOST_ALPHA);
-        };
+        float result = originalAlpha * GHOST_ALPHA;
+        tracePipeline("alpha", null, result, null);
+        return result;
     }
 
-    private static RenderType translucentVersion(RenderType original) {
-        if (original.isOutline()) {
-            return original;
-        }
-        try {
-            RenderType.CompositeState state = ((CompositeRenderTypeAccessor) original)
-                    .customnpcsYsmCompat$getState();
-            var textureState = ((CompositeStateAccessor) (Object) state)
-                    .customnpcsYsmCompat$getTextureState();
-            Optional<ResourceLocation> texture = ((EmptyTextureStateShardAccessor) (Object) textureState)
-                    .customnpcsYsmCompat$getCutoutTexture();
-            if (texture.isPresent()) {
-                RenderType result = RenderType.entityTranslucent(texture.get());
-                traceBufferType(original, result, texture.get());
-                return result;
-            }
-        } catch (ClassCastException ignored) {
-            // Non-composite buffers (if a model supplies one) keep their original type.
-        }
-        traceBufferType(original, original, null);
-        return original;
-    }
-
-    private static void traceBufferType(RenderType original, RenderType result,
-                                        ResourceLocation texture) {
+    public static void tracePipeline(String stage, ResourceLocation texture,
+                                     float alpha, RenderType renderType) {
         int npcId = NPC_ID.get();
-        String state = "buffer=" + original + ",blended=" + result + ",texture=" + texture;
+        if (npcId < 0) {
+            return;
+        }
+        String state = "stage=" + stage + ",texture=" + texture + ",alpha=" + alpha
+                + ",renderType=" + renderType;
         synchronized (SEEN_BUFFER_STATES) {
             if (!SEEN_BUFFER_STATES.computeIfAbsent(npcId, ignored -> new HashSet<>()).add(state)) {
                 return;
             }
         }
         CustomNpcsYsmCompat.LOGGER.info(
-                "[YSM-VIS-TRACE][BUFFER] npcId={} {}", npcId, state);
+                "[YSM-VIS-TRACE][PIPELINE] npcId={} {}", npcId, state);
     }
 
     public static void traceRenderType(ResourceLocation texture, boolean ysmVisible,
@@ -113,23 +87,4 @@ public final class ProxyVisibilityContext {
         }
     }
 
-    private static final class AlphaVertexConsumer implements VertexConsumer {
-        private final VertexConsumer delegate;
-        private final float alpha;
-
-        private AlphaVertexConsumer(VertexConsumer delegate, float alpha) {
-            this.delegate = delegate;
-            this.alpha = alpha;
-        }
-
-        @Override public VertexConsumer vertex(double x, double y, double z) { delegate.vertex(x, y, z); return this; }
-        @Override public VertexConsumer color(int r, int g, int b, int a) { delegate.color(r, g, b, Math.round(a * alpha)); return this; }
-        @Override public VertexConsumer uv(float u, float v) { delegate.uv(u, v); return this; }
-        @Override public VertexConsumer overlayCoords(int u, int v) { delegate.overlayCoords(u, v); return this; }
-        @Override public VertexConsumer uv2(int u, int v) { delegate.uv2(u, v); return this; }
-        @Override public VertexConsumer normal(float x, float y, float z) { delegate.normal(x, y, z); return this; }
-        @Override public void endVertex() { delegate.endVertex(); }
-        @Override public void defaultColor(int r, int g, int b, int a) { delegate.defaultColor(r, g, b, Math.round(a * alpha)); }
-        @Override public void unsetDefaultColor() { delegate.unsetDefaultColor(); }
-    }
 }
