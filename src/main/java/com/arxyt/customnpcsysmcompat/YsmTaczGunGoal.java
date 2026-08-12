@@ -21,17 +21,21 @@ public final class YsmTaczGunGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        LivingEntity target = npc.getTarget();
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        LivingEntity target = target(command);
         return GunCompat.active(npc) && target != null && target.isAlive()
-                && npc.isInRange(target, effectiveRange());
+                && !command.nativeCombatBlocked()
+                && (command.commandedAttack() || npc.distanceTo(target) <= effectiveRange());
     }
 
     @Override
     public boolean canContinueToUse() {
-        LivingEntity target = npc.getTarget();
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        LivingEntity target = target(command);
         // Do not tear down an in-progress reload merely because strafing briefly moved the
         // NPC across the preferred range boundary. The goal itself can navigate back.
-        return GunCompat.active(npc) && target != null && target.isAlive();
+        return GunCompat.active(npc) && target != null && target.isAlive()
+                && !command.nativeCombatBlocked();
     }
 
     @Override
@@ -47,7 +51,10 @@ public final class YsmTaczGunGoal extends Goal {
 
     @Override
     public void stop() {
-        npc.getNavigation().stop();
+        // A newly-issued Dominion move can become authoritative in the same goal-selector
+        // update that stops this gun goal. Never erase that fresh path.
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        if (!command.nativeCombatBlocked()) npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
         GunCompatFacade facade = GunCompat.facade();
         if (facade != null) {
@@ -61,11 +68,13 @@ public final class YsmTaczGunGoal extends Goal {
 
     @Override
     public void tick() {
-        LivingEntity target = npc.getTarget();
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        LivingEntity target = target(command);
         GunCompatFacade facade = GunCompat.facade();
         if (target == null || facade == null) {
             return;
         }
+        if (command.commandedAttack() && npc.getTarget() != target) npc.setTarget(target);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
         double distance = npc.distanceTo(target);
         double desired = effectiveRange();
@@ -74,6 +83,27 @@ public final class YsmTaczGunGoal extends Goal {
         if (npc.isPassenger()) {
             npc.getNavigation().stop();
             npc.getMoveControl().strafe(0.0F, 0.0F);
+        } else if (command.active()) {
+            CommandGunTactics.Maneuver maneuver = CommandGunTactics.decideControlled(
+                    command.commandedAttack(), canSee, distance, desired, command.closeQuarters());
+            switch (maneuver) {
+                case PURSUE -> {
+                    strafeTime = -1;
+                    npc.getNavigation().moveTo(target, 1.0D);
+                    npc.getMoveControl().strafe(0.0F, 0.0F);
+                }
+                case RETREAT -> {
+                    npc.getNavigation().stop();
+                    npc.getMoveControl().strafe(-0.5F, 0.0F);
+                }
+                case HOLD, SENTRY -> {
+                    // SENTRY is a stationary native-target stance; HOLD is an ordered
+                    // attack already at a safe firing distance. Neither may move.
+                    strafeTime = -1;
+                    npc.getNavigation().stop();
+                    npc.getMoveControl().strafe(0.0F, 0.0F);
+                }
+            }
         } else if (!canSee || distance > desired) {
             strafeTime = -1;
             npc.getNavigation().moveTo(target, 1.0D);
@@ -92,7 +122,7 @@ public final class YsmTaczGunGoal extends Goal {
         }
 
         npc.setYRot(Mth.rotateIfNecessary(npc.getYRot(), npc.yHeadRot, 30.0F));
-        if (canSee && --actionCooldown <= 0) {
+        if (canSee && distance <= desired && --actionCooldown <= 0) {
             try {
                 GunCompatFacade.Action action = facade.operate(npc, target);
                 actionCooldown = action.delayTicks();
@@ -103,7 +133,14 @@ public final class YsmTaczGunGoal extends Goal {
         }
     }
 
+    private LivingEntity target(DominionCommandBridge.Snapshot command) {
+        return command.active() ? command.attackTarget() : npc.getTarget();
+    }
+
     private double effectiveRange() {
+        if (DominionCommandBridge.snapshot(npc).active()) {
+            return Math.max(1.0D, npc.stats.ranged.getRange());
+        }
         GunCompatFacade facade = GunCompat.facade();
         if (facade == null) return 1.0D;
         int gunRange;

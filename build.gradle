@@ -47,6 +47,10 @@ dependencies {
     implementation fg.deobf('local:[自定义NPC]CustomNPCs-1.20.1-GBPort-Unofficial:1.20.1.20260227')
     implementation fg.deobf('local:[野山梅]ysm:2.6.5-forge+mc1.20.1-release')
     compileOnly fg.deobf('curse.maven:timeless-and-classics-zero-1028108:6518539-sources-6518544')
+    if (!project.hasProperty('dominionsword_jar')) {
+        throw new GradleException('Set -Pdominionsword_jar=<Dominion Sword jar> to compile the optional command adapter.')
+    }
+    compileOnly files(project.property('dominionsword_jar'))
     testImplementation platform('org.junit:junit-bom:5.10.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

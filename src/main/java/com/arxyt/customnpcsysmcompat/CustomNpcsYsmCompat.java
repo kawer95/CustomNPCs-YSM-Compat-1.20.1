@@ -19,6 +19,10 @@ public final class CustomNpcsYsmCompat {
         if (ModList.get().isLoaded("tacz")) {
             GunCompat.load();
         }
+        if (ModList.get().isLoaded("dominionsword")) {
+            DominionCommandBridge.load();
+            com.arxyt.dominionsword.api.DominionControlApi.registerAdapter(new DominionYsmNpcAdapter());
+        }
         LOGGER.info("CustomNPCs YSM Compat loaded");
     }
 }

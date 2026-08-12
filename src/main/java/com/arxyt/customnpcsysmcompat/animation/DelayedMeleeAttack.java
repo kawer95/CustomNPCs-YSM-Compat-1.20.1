@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.animation;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
+import com.arxyt.customnpcsysmcompat.DominionCommandBridge;
 import net.minecraft.world.entity.Entity;
 import noppes.npcs.entity.EntityNPCInterface;
 
@@ -27,6 +28,7 @@ public final class DelayedMeleeAttack {
         if (isExecuting()) {
             return false;
         }
+        if (!DominionCommandBridge.allowsAttack(npc, target)) return true;
         synchronized (PENDING) {
             if (!PENDING.containsKey(npc)) {
                 int executeAt = npc.tickCount + HIT_DELAY_TICKS;
@@ -51,7 +53,8 @@ public final class DelayedMeleeAttack {
         }
 
         Entity target = pending.target();
-        if (!npc.isAlive() || !target.isAlive() || target.level() != npc.level()) {
+        if (!npc.isAlive() || !target.isAlive() || target.level() != npc.level()
+                || !DominionCommandBridge.allowsAttack(npc, target)) {
             CustomNpcsYsmCompat.LOGGER.info(
                     "[YSM-ATTACK-TRACE][SERVER-DROPPED] npcId={} tick={} targetId={}",
                     npc.getId(), npc.tickCount, target.getId());

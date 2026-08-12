@@ -10,6 +10,8 @@ Forge 1.20.1 compatibility mod that lets a CustomNPC use any locally loaded Yes 
 
 TaCZ `1.1.5` is optional. When installed, YSM-enabled CustomNPCs holding a TaCZ gun use real TaCZ shooting, aiming, bolting and reloading instead of CustomNPC projectile entities.
 
+Dominion Sword `1.31.0+` is optional. Under Dominion control, a YSM CustomNPC keeps its configured CustomNPC ranged distance while Dominion owns target selection and gun maneuvering: it pursues until it has line of sight, fires while retreating inside 10 blocks, suppresses random strafing, honors breach/CQB mode, and does not complete a delayed melee hit against a superseded command target.
+
 Both client and server must install the compatibility mod. Every client must install the same YSM model packs; model files are not sent over the network.
 
 Open a CustomNPC's model editor and select **YSM Model**. The page supports search, live preview, apply, cancel, and restoring the original CustomNPC model.
@@ -23,7 +25,7 @@ The projectile slot and eight drop slots form the NPC's TaCZ ammunition inventor
 The two required mod jars are resolved from `../原型模组` by `build.gradle`.
 
 ```powershell
-.\gradlew.bat clean test build
+.\gradlew.bat clean test build -Pdominionsword_jar=../DominionSword-1.20.1/build/libs/dominionsword-1.31.0.jar
 ```
 
 The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.3.6.jar`.
