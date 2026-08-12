@@ -83,6 +83,11 @@ public final class DominionCommandBridge {
         public boolean commandedAttack() {
             return active && !nativeCombatBlocked && attackTarget != null;
         }
+
+        /** Idle/HOLD control may use weapons, but it must never create locomotion intent. */
+        public boolean stationarySentry() {
+            return active && autonomousMovementBlocked && !nativeCombatBlocked && attackTarget == null;
+        }
     }
 
     private record Access(MethodHandle commandView, MethodHandle active,

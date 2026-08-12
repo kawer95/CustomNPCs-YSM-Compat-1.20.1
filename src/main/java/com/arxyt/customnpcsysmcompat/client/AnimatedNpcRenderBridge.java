@@ -9,6 +9,7 @@ import com.arxyt.customnpcsysmcompat.animation.NpcAnimationState;
 import com.arxyt.customnpcsysmcompat.animation.NpcMovementTracker;
 import com.arxyt.customnpcsysmcompat.animation.MeleeAttackSync;
 import com.arxyt.customnpcsysmcompat.animation.NpcOrientationTracker;
+import com.arxyt.customnpcsysmcompat.animation.NpcHurtState;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import com.arxyt.customnpcsysmcompat.mixin.EntitySharedFlagAccessor;
@@ -35,6 +36,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import org.joml.Matrix4f;
 
 public final class AnimatedNpcRenderBridge {
     private static final Map<EntityNPCInterface, AnimatedProxy> PROXIES =
@@ -81,11 +85,13 @@ public final class AnimatedNpcRenderBridge {
             float renderPartialTick = preview ? (previewMillis % 50L) / 50.0F : partialTick;
             int animationTick = preview ? (int) (previewMillis / 50L) : npc.tickCount;
             sync(holder, npc, renderPartialTick, preview, animationTick);
+            boolean hurtDiagnostic = !preview && updateHurtDiagnostic(holder, npc, renderPartialTick);
             if (!selected.modelId().equals(holder.modelId)) {
                 if (!Ysm265Adapter.setPlayerModel(holder.player, selected.modelId())) {
                     return false;
                 }
                 holder.modelId = selected.modelId();
+                holder.verticalAnchor.reset();
             } else if (!Ysm265Adapter.isPlayerModelReady(holder.player)) {
                 return false;
             }
@@ -96,13 +102,25 @@ public final class AnimatedNpcRenderBridge {
             ProxyVisibilityContext.begin(partialVisibility, npc.getId());
             boolean rendered;
             try {
+                if (hurtDiagnostic) traceRenderMatrix(holder, npc, "bridge-before-scale", poseStack, renderPartialTick, null);
                 poseStack.scale(npc.scaleX / 5.0F * size, npc.scaleY / 5.0F * size,
                         npc.scaleZ / 5.0F * size);
+                if (hurtDiagnostic) traceRenderMatrix(holder, npc, "bridge-before-ysm", poseStack, renderPartialTick, null);
                 float renderYaw = holder.orientation.interpolatedBodyYaw(renderPartialTick);
                 GunCompat.beginClientRender();
                 try {
+                    boolean anchorSample = !preview && holder.verticalAnchor.needsSample(holder.proxyHurtActive);
+                    YsmVertexCapture capture = (hurtDiagnostic || anchorSample)
+                            ? new YsmVertexCapture(buffers, new Matrix4f(poseStack.last().pose()),
+                            preview ? 0.0D : holder.verticalAnchor.correction())
+                            : null;
                     rendered = Ysm265Adapter.renderPlayer(holder.player, renderYaw, renderPartialTick,
-                            poseStack, buffers, packedLight);
+                            poseStack, capture == null ? buffers : capture, packedLight);
+                    if (!preview && capture != null && capture.hasVertices()) {
+                        updateVerticalAnchor(holder, npc, capture);
+                    }
+                    if (hurtDiagnostic) traceRenderMatrix(holder, npc, "bridge-after-ysm", poseStack,
+                            renderPartialTick, capture == null ? null : capture.bounds());
                 } finally {
                     GunCompat.endClientRender();
                 }
@@ -119,6 +137,22 @@ public final class AnimatedNpcRenderBridge {
         } catch (Throwable error) {
             CustomNpcsYsmCompat.LOGGER.error("Failed to render animated YSM model for CustomNPC {}", npc.getId(), error);
             return false;
+        }
+    }
+
+    private static void updateVerticalAnchor(AnimatedProxy holder, EntityNPCInterface npc,
+                                             YsmVertexCapture capture) {
+        double previous = holder.verticalAnchor.correction();
+        YsmVerticalAnchor.Update update = holder.verticalAnchor.observe(
+                capture.rawFloor(), capture.rawCeiling(), holder.proxyHurtActive);
+        if (update == YsmVerticalAnchor.Update.CALIBRATED
+                || update == YsmVerticalAnchor.Update.CORRECTION_CHANGED
+                || update == YsmVerticalAnchor.Update.RELEASED) {
+            CustomNpcsYsmCompat.LOGGER.info(
+                    "[YSM-ROOT-ANCHOR] npcId={} tick={} event={} update={} hurt={} rawFloor={} rawCeiling={} correction={} previous={}",
+                    npc.getId(), npc.tickCount, holder.hurtDiagnosticEvent, update,
+                    holder.proxyHurtActive, capture.rawFloor(), capture.rawCeiling(),
+                    holder.verticalAnchor.correction(), previous);
         }
     }
 
@@ -180,7 +214,16 @@ public final class AnimatedNpcRenderBridge {
 
         player.tickCount = input.tick();
         player.setPos(npc.getX(), npc.getY(), npc.getZ());
+        // RemotePlayer is a render-only proxy and therefore never receives Entity#tick(),
+        // which normally advances xo/yo/zo. YSM explicitly interpolates those fields and
+        // derives an animation-space movement vector from them. Leaving the proxy's old
+        // coordinates stale makes a normal hurt transition look like a large vertical
+        // teleport to model scripts, which can leave the model root below the NPC.
+        player.xo = preview ? npc.getX() : npc.xo;
+        player.yo = preview ? npc.getY() : npc.yo;
+        player.zo = preview ? npc.getZ() : npc.zo;
         player.setDeltaMovement(npc.getDeltaMovement());
+        player.fallDistance = npc.fallDistance;
         player.setPose(Pose.STANDING);
         player.setOnGround(npc.onGround());
         player.setXRot(npc.getXRot());
@@ -192,7 +235,8 @@ public final class AnimatedNpcRenderBridge {
         player.yHeadRot = frame.headYaw();
         player.yHeadRotO = orientation.previousHeadYaw();
 
-        if (holder.lastSyncedTick != input.tick()) {
+        boolean advancedTick = holder.lastSyncedTick != input.tick();
+        if (advancedTick) {
             player.walkAnimation.update(frame.walkSpeed(), 1.0F);
             holder.lastSyncedTick = input.tick();
         }
@@ -203,7 +247,14 @@ public final class AnimatedNpcRenderBridge {
         player.getFoodData().setFoodLevel(20);
         player.getFoodData().setSaturation(20.0F);
         holder.ysmFoodLevel = Ysm265Adapter.normalizePlayerState(player);
-        player.hurtTime = dead ? 0 : frame.hurtTime();
+        // Preserve model-pack-defined hurt actions. The paired clocks are normalized because
+        // LivingEntity normally establishes both together, while the render-only proxy does
+        // not pass through LivingEntity#hurt and must mirror that invariant explicitly.
+        NpcHurtState hurt = NpcHurtState.normalize(frame.hurtTime(), npc.hurtDuration, dead);
+        boolean hurtAnimationEnded = holder.proxyHurtActive && hurt.time() == 0;
+        player.hurtDuration = hurt.duration();
+        player.hurtTime = hurt.time();
+        holder.proxyHurtActive = hurt.time() > 0;
         // YSM selects its death animation from isDeadOrDying() (health == 0).
         // Keeping vanilla deathTime non-zero adds the red corpse presentation;
         // the frozen YSM clock already preserves the animation's final frame.
@@ -235,6 +286,22 @@ public final class AnimatedNpcRenderBridge {
             GunCompat.syncClientState(npc, player);
             traceProxyState(holder, npc, player, visibility);
         }
+        // The proxy is deliberately not inserted into ClientLevel, so Forge/YSM never sends
+        // it the normal per-entity capability tick. Advance that state exactly once for each
+        // mirrored NPC tick after every input field has been synchronized. Without this,
+        // one-shot animations such as hurt can leave a stale root-bone translation forever.
+        if (advancedTick) Ysm265Adapter.advancePlayerAnimation(player);
+        if (hurtAnimationEnded && !holder.modelId.isBlank()) {
+            // YSM model packs are allowed to translate their root during `attacked`. The
+            // synthetic player has no normal world lifecycle, and the captured GPU vertices
+            // prove that some packs retain the final translated root after the selector has
+            // already left `attacked`. Re-applying the same model here rebuilds only this
+            // render proxy's animation state after the complete hurt action has played.
+            boolean recovered = Ysm265Adapter.setPlayerModel(player, holder.modelId);
+            CustomNpcsYsmCompat.LOGGER.info(
+                    "[YSM-HURT-RECOVERY] npcId={} tick={} model={} recovered={} hurtDuration={}",
+                    npc.getId(), npc.tickCount, holder.modelId, recovered, player.hurtDuration);
+        }
     }
 
     private static void traceProxyState(AnimatedProxy holder, EntityNPCInterface npc,
@@ -255,6 +322,11 @@ public final class AnimatedNpcRenderBridge {
                 + ",health=" + player.getHealth() + "/" + player.getMaxHealth()
                 + ",deadOrDying=" + player.isDeadOrDying()
                 + ",hurtTime=" + player.hurtTime
+                + ",hurtDuration=" + player.hurtDuration
+                + ",npcHurtTime=" + npc.hurtTime
+                + ",npcHurtDuration=" + npc.hurtDuration
+                + ",proxyOldPos=" + player.xo + "/" + player.yo + "/" + player.zo
+                + ",npcOldPos=" + npc.xo + "/" + npc.yo + "/" + npc.zo
                 + ",deathTime=" + player.deathTime
                 + ",pose=" + player.getPose()
                 + ",usingItem=" + player.isUsingItem()
@@ -270,6 +342,89 @@ public final class AnimatedNpcRenderBridge {
         holder.lastProxyDebugState = state;
         CustomNpcsYsmCompat.LOGGER.info(
                 "[YSM-PROXY-TRACE] npcId={} tick={} {}", npc.getId(), npc.tickCount, state);
+    }
+
+    private static boolean updateHurtDiagnostic(AnimatedProxy holder, EntityNPCInterface npc, float partialTick) {
+        boolean hurt = npc.hurtTime > 0;
+        if (hurt && !holder.hurtDiagnosticActive) {
+            holder.hurtDiagnosticEvent++;
+            holder.hurtDiagnosticUntil = npc.tickCount + 40;
+            holder.hurtDiagnosticDeadlineMillis = Util.getMillis() + 5_000L;
+            CustomNpcsYsmCompat.LOGGER.info(
+                    "[YSM-HURT-DIAG][BEGIN] event={} npcId={} uuid={} tick={} model={} thread={}",
+                    holder.hurtDiagnosticEvent, npc.getId(), npc.getUUID(), npc.tickCount,
+                    holder.modelId, Thread.currentThread().getName());
+            for (String previous : holder.hurtDiagnosticHistory) {
+                CustomNpcsYsmCompat.LOGGER.info("[YSM-HURT-DIAG][PRE] event={} npcId={} {}",
+                        holder.hurtDiagnosticEvent, npc.getId(), previous);
+            }
+        }
+        if (hurt) holder.hurtDiagnosticUntil = Math.max(holder.hurtDiagnosticUntil, npc.tickCount + 40);
+        if (!hurt && holder.hurtDiagnosticActive) {
+            CustomNpcsYsmCompat.LOGGER.info("[YSM-HURT-DIAG][HURT-END] event={} npcId={} tick={}",
+                    holder.hurtDiagnosticEvent, npc.getId(), npc.tickCount);
+        }
+        holder.hurtDiagnosticActive = hurt;
+
+        String frame = diagnosticEntityFrame(npc, holder.player, partialTick);
+        if (npc.tickCount > holder.hurtDiagnosticUntil || Util.getMillis() > holder.hurtDiagnosticDeadlineMillis) {
+            holder.hurtDiagnosticHistory.addLast(frame);
+            while (holder.hurtDiagnosticHistory.size() > 8) holder.hurtDiagnosticHistory.removeFirst();
+            return false;
+        }
+        if (holder.lastHurtDiagnosticTick != npc.tickCount) {
+            holder.lastHurtDiagnosticTick = npc.tickCount;
+            CustomNpcsYsmCompat.LOGGER.info("[YSM-HURT-DIAG][ENTITY] event={} npcId={} {}",
+                    holder.hurtDiagnosticEvent, npc.getId(), frame);
+            CustomNpcsYsmCompat.LOGGER.info("[YSM-HURT-DIAG][YSM-STATE] event={} npcId={} tick={} {}",
+                    holder.hurtDiagnosticEvent, npc.getId(), npc.tickCount,
+                    Ysm265Adapter.diagnosticSnapshot(holder.player));
+        }
+        return true;
+    }
+
+    private static String diagnosticEntityFrame(EntityNPCInterface npc, YsmNpcProxyPlayer player, float partialTick) {
+        return "tick=" + npc.tickCount + ",partial=" + partialTick
+                + ",npcPos=" + npc.getX() + "/" + npc.getY() + "/" + npc.getZ()
+                + ",npcOld=" + npc.xo + "/" + npc.yo + "/" + npc.zo
+                + ",npcDelta=" + npc.getDeltaMovement() + ",npcBox=" + npc.getBoundingBox()
+                + ",npcGround=" + npc.onGround() + ",npcFall=" + npc.fallDistance
+                + ",npcCollision=" + npc.horizontalCollision + "/" + npc.verticalCollision
+                + ",npcHurt=" + npc.hurtTime + "/" + npc.hurtDuration
+                + ",npcHealth=" + npc.getHealth() + "/" + npc.getMaxHealth()
+                + ",npcRot=" + npc.getXRot() + "/" + npc.getYRot() + "/" + npc.yBodyRot + "/" + npc.yHeadRot
+                + ",proxyPos=" + player.getX() + "/" + player.getY() + "/" + player.getZ()
+                + ",proxyOld=" + player.xo + "/" + player.yo + "/" + player.zo
+                + ",proxyDelta=" + player.getDeltaMovement() + ",proxyBox=" + player.getBoundingBox()
+                + ",proxyGround=" + player.onGround() + ",proxyFall=" + player.fallDistance
+                + ",proxyCollision=" + player.horizontalCollision + "/" + player.verticalCollision
+                + ",proxyHurt=" + player.hurtTime + "/" + player.hurtDuration
+                + ",proxyRot=" + player.getXRot() + "/" + player.getYRot() + "/" + player.yBodyRot + "/" + player.yHeadRot;
+    }
+
+    private static void traceRenderMatrix(AnimatedProxy holder, EntityNPCInterface npc, String stage,
+                                          PoseStack poseStack, float partialTick, String vertices) {
+        if (holder.lastHurtDiagnosticRenderTick != npc.tickCount) {
+            holder.lastHurtDiagnosticRenderTick = npc.tickCount;
+            holder.hurtDiagnosticRenderStagesThisTick = 0;
+        }
+        // Two complete contexts (before scale, before YSM, after YSM) are enough to detect
+        // alternate render passes while avoiding unbounded logs when the client is paused.
+        if (holder.hurtDiagnosticRenderStagesThisTick++ >= 6) return;
+        Matrix4f matrix = poseStack.last().pose();
+        StringBuilder values = new StringBuilder(180);
+        for (int row = 0; row < 4; row++) {
+            if (row > 0) values.append(';');
+            for (int column = 0; column < 4; column++) {
+                if (column > 0) values.append(',');
+                values.append(matrix.get(row, column));
+            }
+        }
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[YSM-HURT-DIAG][RENDER] event={} npcId={} tick={} partial={} frame={} stage={} matrix=[{}] {}",
+                holder.hurtDiagnosticEvent, npc.getId(), npc.tickCount, partialTick,
+                holder.hurtDiagnosticRenderFrame++, stage, values,
+                vertices == null ? "" : vertices);
     }
 
     private static boolean shouldHide(EntityNPCInterface npc) {
@@ -395,6 +550,17 @@ public final class AnimatedNpcRenderBridge {
         private String lastProxyDebugState = "";
         private int ysmFoodLevel = -1;
         private String modelId = "";
+        private final Deque<String> hurtDiagnosticHistory = new ArrayDeque<>();
+        private boolean hurtDiagnosticActive;
+        private boolean proxyHurtActive;
+        private final YsmVerticalAnchor verticalAnchor = new YsmVerticalAnchor();
+        private int hurtDiagnosticEvent;
+        private int hurtDiagnosticUntil = Integer.MIN_VALUE;
+        private long hurtDiagnosticDeadlineMillis = Long.MIN_VALUE;
+        private int lastHurtDiagnosticTick = Integer.MIN_VALUE;
+        private int lastHurtDiagnosticRenderTick = Integer.MIN_VALUE;
+        private int hurtDiagnosticRenderStagesThisTick;
+        private long hurtDiagnosticRenderFrame;
 
         private AnimatedProxy(YsmNpcProxyPlayer player) {
             this.player = player;

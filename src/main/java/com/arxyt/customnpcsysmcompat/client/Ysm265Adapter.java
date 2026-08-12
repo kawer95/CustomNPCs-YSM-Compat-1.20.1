@@ -12,12 +12,17 @@ import net.minecraftforge.common.capabilities.Capability;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Collection;
+import org.joml.Vector2f;
+import org.joml.Vector3f;
+import net.minecraft.world.phys.Vec3;
 
 /** The only class allowed to know YSM 2.6.5's obfuscated binary names. */
 public final class Ysm265Adapter {
@@ -106,6 +111,61 @@ public final class Ysm265Adapter {
         return -1;
     }
 
+    /** Mirrors the YSM capability tick normally received only by players loaded in a level. */
+    public static void advancePlayerAnimation(RemotePlayer player) {
+        try {
+            Bindings b = bindings();
+            Optional<Object> value = playerAnimatable(player, b);
+            if (value.isPresent()) b.advancePlayerAnimation.invoke(value.get());
+        } catch (Throwable error) {
+            report(error);
+        }
+    }
+
+    /** Complete primitive/vector snapshot used only inside a bounded hurt diagnostic window. */
+    public static String diagnosticSnapshot(RemotePlayer player) {
+        try {
+            Bindings b = bindings();
+            Optional<Object> value = playerAnimatable(player, b);
+            if (value.isEmpty()) return "capability=missing";
+            Object animatable = value.get();
+            Object syncData = b.getPlayerSyncData.invoke(animatable);
+            return "cap{" + shallowFields(animatable) + "},sync{" + shallowFields(syncData) + "}";
+        } catch (Throwable error) {
+            return "diagnostic-error=" + error.getClass().getName() + ":" + error.getMessage();
+        }
+    }
+
+    private static String shallowFields(Object value) throws IllegalAccessException {
+        StringBuilder out = new StringBuilder();
+        Class<?> type = value.getClass();
+        boolean first = true;
+        while (type != null && type != Object.class) {
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers())) continue;
+                field.setAccessible(true);
+                Object fieldValue = field.get(value);
+                String rendered = diagnosticValue(fieldValue);
+                if (rendered == null) continue;
+                if (!first) out.append(',');
+                first = false;
+                out.append(type.getSimpleName()).append('.').append(field.getName()).append('=').append(rendered);
+            }
+            type = type.getSuperclass();
+        }
+        return out.toString();
+    }
+
+    private static String diagnosticValue(Object value) {
+        if (value == null) return "null";
+        if (value instanceof Number || value instanceof Boolean || value instanceof Character
+                || value instanceof String || value instanceof Enum<?> || value instanceof Vec3
+                || value instanceof Vector2f || value instanceof Vector3f) return String.valueOf(value);
+        if (value instanceof Collection<?> collection) return value.getClass().getSimpleName() + "[" + collection.size() + "]";
+        if (value instanceof Map<?, ?> map) return value.getClass().getSimpleName() + "[" + map.size() + "]";
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     private static Optional<Object> playerAnimatable(RemotePlayer player, Bindings bindings) {
         return (Optional<Object>) player.getCapability((Capability<Object>) bindings.playerCapability).resolve();
@@ -166,13 +226,14 @@ public final class Ysm265Adapter {
                 Method setModel = animatable.getMethod(OBF, String.class, String.class);
                 Method isValid = animatable.getMethod("o0ooooOo0o000OOo0oO00OoO");
                 Method getPlayerSyncData = animatable.getMethod(OBF);
+                Method advancePlayerAnimation = animatable.getMethod("oOo0o0000OOOO0OooooO00oo");
                 Field foodLevel = Class.forName(PLAYER_SYNC_DATA)
                         .getDeclaredField("o0OOO0o0o0OOo000oO00o00O");
                 foodLevel.setAccessible(true);
                 Method customRenderType = Class.forName(YSM_RENDER_TYPE)
                         .getMethod(OBF, ResourceLocation.class);
                 bindings = new Bindings(modelRegistry, capability, setModel, isValid,
-                        getPlayerSyncData, foodLevel, customRenderType);
+                        getPlayerSyncData, advancePlayerAnimation, foodLevel, customRenderType);
             }
             return bindings;
         }
@@ -197,6 +258,7 @@ public final class Ysm265Adapter {
 
     private record Bindings(Method modelRegistry, Capability<?> playerCapability,
                             Method setPlayerModel, Method isPlayerModelValid,
-                            Method getPlayerSyncData, Field foodLevel, Method customRenderType) {
+                            Method getPlayerSyncData, Method advancePlayerAnimation,
+                            Field foodLevel, Method customRenderType) {
     }
 }

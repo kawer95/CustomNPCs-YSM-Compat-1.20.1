@@ -43,7 +43,8 @@ public final class DominionYsmNpcAdapter implements DominionUnitAdapter {
         if (!(entity instanceof EntityNPCInterface npc) || !GunCompat.active(npc)) return false;
         npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
-        stopGun(npc);
+        // HOLD is also a stationary sentry stance. Stopping the gun here runs after
+        // Goal ticks and used to cancel every shot that the sentry goal prepared.
         return true;
     }
 
