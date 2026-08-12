@@ -58,5 +58,17 @@ public final class NpcMovementTracker {
 
     public record Sample(boolean walking, float speed, float movementYaw) {
         public static final Sample STOPPED = new Sample(false, 0.0F, 0.0F);
+
+        /** True when displacement is mostly opposite to the aimed direction. */
+        public boolean backpedalling(float facingYaw) {
+            return walking && Math.abs(wrapDegrees(movementYaw - facingYaw)) > 100.0F;
+        }
+
+        private static float wrapDegrees(float degrees) {
+            float wrapped = degrees % 360.0F;
+            if (wrapped >= 180.0F) wrapped -= 360.0F;
+            if (wrapped < -180.0F) wrapped += 360.0F;
+            return wrapped;
+        }
     }
 }

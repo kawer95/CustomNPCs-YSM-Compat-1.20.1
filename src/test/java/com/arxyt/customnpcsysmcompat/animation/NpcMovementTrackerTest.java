@@ -39,4 +39,13 @@ class NpcMovementTrackerTest {
         assertFalse(tracker.sample(31, 10.0, 0.0).walking());
         assertFalse(tracker.sample(50, 11.0, 0.0).walking());
     }
+
+    @Test
+    void distinguishesBackpedallingFromTurningAndStrafing() {
+        assertFalse(new NpcMovementTracker.Sample(true, 0.5F, 0.0F).backpedalling(0.0F));
+        assertTrue(new NpcMovementTracker.Sample(true, 0.5F, 180.0F).backpedalling(0.0F));
+        assertFalse(new NpcMovementTracker.Sample(true, 0.5F, 99.0F).backpedalling(0.0F));
+        assertTrue(new NpcMovementTracker.Sample(true, 0.5F, -170.0F).backpedalling(10.0F));
+        assertFalse(NpcMovementTracker.Sample.STOPPED.backpedalling(180.0F));
+    }
 }

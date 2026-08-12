@@ -95,6 +95,7 @@ public final class YsmTaczGunGoal extends Goal {
                 case RETREAT -> {
                     npc.getNavigation().stop();
                     npc.getMoveControl().strafe(-0.5F, 0.0F);
+                    faceTargetWhileRetreating(target);
                 }
                 case HOLD, SENTRY -> {
                     // SENTRY is a stationary native-target stance; HOLD is an ordered
@@ -131,6 +132,15 @@ public final class YsmTaczGunGoal extends Goal {
                 actionCooldown = 100;
             }
         }
+    }
+
+    private void faceTargetWhileRetreating(LivingEntity target) {
+        double dx = target.getX() - npc.getX();
+        double dz = target.getZ() - npc.getZ();
+        float targetYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        npc.setYRot(targetYaw);
+        npc.yBodyRot = targetYaw;
+        npc.yHeadRot = targetYaw;
     }
 
     private LivingEntity target(DominionCommandBridge.Snapshot command) {

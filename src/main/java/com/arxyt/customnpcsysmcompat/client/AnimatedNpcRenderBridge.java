@@ -161,7 +161,12 @@ public final class AnimatedNpcRenderBridge {
         if (!preview && !attack.active()) {
             attack = vanillaSwingSample(npc, partialTick);
         }
-        float targetBodyYaw = movement.walking() ? movement.movementYaw() : npc.yBodyRot;
+        // A retreating gun NPC moves opposite to its aim. Do not turn the YSM proxy
+        // toward that displacement or it appears to run around and shoot backwards.
+        boolean backpedalling = movement.backpedalling(npc.yHeadRot);
+        float targetBodyYaw = movement.walking()
+                ? (backpedalling ? npc.yHeadRot : movement.movementYaw())
+                : npc.yBodyRot;
         NpcOrientationTracker.Frame orientation = preview
                 ? NpcOrientationTracker.fixed(targetBodyYaw, npc.yHeadRot)
                 : holder.orientationTracker.sample(npc.tickCount, targetBodyYaw, npc.yHeadRot);
