@@ -11,6 +11,7 @@ import com.arxyt.customnpcsysmcompat.animation.MeleeAttackSync;
 import com.arxyt.customnpcsysmcompat.animation.NpcOrientationTracker;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
+import com.arxyt.customnpcsysmcompat.mixin.EntitySharedFlagAccessor;
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
@@ -232,6 +233,7 @@ public final class AnimatedNpcRenderBridge {
                 + ",displayVisible=" + npc.display.getVisible()
                 + ",npcInvisible=" + npc.isInvisible()
                 + ",invisibilityEffect=" + npc.hasEffect(MobEffects.INVISIBILITY)
+                + ",vanillaInvisibleFlag=" + vanillaInvisible(npc)
                 + ",npcInvisibleTo=" + (viewer != null && npc.isInvisibleTo(viewer))
                 + ",displayVisibleTo=" + (viewer != null && npc.display.isVisibleTo(viewer))
                 + ",resolved=" + visibility
@@ -268,7 +270,7 @@ public final class AnimatedNpcRenderBridge {
         boolean hasWand = viewer != null && viewer.getMainHandItem().getItem() == CustomItems.wand;
         // EntityNPCInterface overrides isInvisible() for its display setting, so it does not
         // expose vanilla's invisibility-effect flag. Read the potion effect explicitly.
-        if (npc.hasEffect(MobEffects.INVISIBILITY)) {
+        if (vanillaInvisible(npc) || npc.hasEffect(MobEffects.INVISIBILITY)) {
             return hasWand ? Visibility.PARTIAL : Visibility.HIDDEN;
         }
         if (displayMode == 2) {
@@ -278,6 +280,12 @@ public final class AnimatedNpcRenderBridge {
             return hasWand ? Visibility.PARTIAL : Visibility.HIDDEN;
         }
         return npc.isInvisible() ? Visibility.HIDDEN : Visibility.VISIBLE;
+    }
+
+    private static boolean vanillaInvisible(Entity entity) {
+        // Vanilla Entity#isInvisible reads shared flag 5, but CustomNPC overrides that method
+        // with display-mode semantics. The shared flag remains the authoritative potion state.
+        return ((EntitySharedFlagAccessor) entity).customnpcsYsmCompat$getSharedFlag(5);
     }
 
     private static float proxyHealth(RemotePlayer player) {
