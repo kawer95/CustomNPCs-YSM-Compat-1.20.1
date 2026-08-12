@@ -2,8 +2,8 @@ package com.arxyt.customnpcsysmcompat.mixin;
 
 import com.arxyt.customnpcsysmcompat.NpcAmmoItemHandler;
 import net.minecraft.core.Direction;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityProvider;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.IItemHandler;
@@ -19,7 +19,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /** Makes TaCZ see CustomNPC's projectile/drop slots instead of Forge's six equipment slots. */
-@Mixin(value = CapabilityProvider.class, remap = false)
+@Mixin(LivingEntity.class)
 public abstract class EntityNpcItemCapabilityMixin {
     @Unique
     private LazyOptional<IItemHandler> customnpcsYsmCompat$ammoInventory = LazyOptional.empty();
