@@ -13,6 +13,7 @@
   "client": [
     "client.GuiCreationEntitiesMixin",
     "client.GuiMpmPartMixin",
+    "client.MpmPartAbstractClientMixin",
     "client.YsmGenericRendererMixin"
   ],
   "injectors": {
