@@ -99,8 +99,13 @@ public final class AnimatedNpcRenderBridge {
                 poseStack.scale(npc.scaleX / 5.0F * size, npc.scaleY / 5.0F * size,
                         npc.scaleZ / 5.0F * size);
                 float renderYaw = holder.orientation.interpolatedBodyYaw(renderPartialTick);
-                rendered = Ysm265Adapter.renderPlayer(holder.player, renderYaw, renderPartialTick,
-                        poseStack, buffers, packedLight);
+                GunCompat.beginClientRender();
+                try {
+                    rendered = Ysm265Adapter.renderPlayer(holder.player, renderYaw, renderPartialTick,
+                            poseStack, buffers, packedLight);
+                } finally {
+                    GunCompat.endClientRender();
+                }
             } finally {
                 ProxyVisibilityContext.end();
                 poseStack.popPose();

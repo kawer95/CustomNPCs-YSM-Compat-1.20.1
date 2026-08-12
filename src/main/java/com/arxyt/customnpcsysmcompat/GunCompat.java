@@ -5,6 +5,8 @@ import noppes.npcs.entity.EntityNPCInterface;
 
 public final class GunCompat {
     private static volatile GunCompatFacade facade;
+    private static volatile java.lang.reflect.Method beginClientRender;
+    private static volatile java.lang.reflect.Method endClientRender;
     private static final java.util.concurrent.atomic.AtomicBoolean RUNTIME_ERROR_REPORTED =
             new java.util.concurrent.atomic.AtomicBoolean();
 
@@ -17,6 +19,13 @@ public final class GunCompat {
                     "com.arxyt.customnpcsysmcompat.tacz.Tacz115Compat")
                     .getConstructor().newInstance();
             CustomNpcsYsmCompat.LOGGER.info("TaCZ 1.1.5 gun control enabled");
+            if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()) {
+                Class<?> effects = Class.forName(
+                        "com.arxyt.customnpcsysmcompat.tacz.client.TaczClientEffects");
+                effects.getMethod("register").invoke(null);
+                beginClientRender = effects.getMethod("beginNpcGunRender");
+                endClientRender = effects.getMethod("endNpcGunRender");
+            }
         } catch (Throwable error) {
             CustomNpcsYsmCompat.LOGGER.error("TaCZ was found but its 1.1.5 adapter failed to load", error);
         }
@@ -58,6 +67,23 @@ public final class GunCompat {
             } catch (Throwable error) {
                 reportRuntimeError(error);
             }
+        }
+    }
+
+    public static void beginClientRender() {
+        invokeClientHook(beginClientRender);
+    }
+
+    public static void endClientRender() {
+        invokeClientHook(endClientRender);
+    }
+
+    private static void invokeClientHook(java.lang.reflect.Method method) {
+        if (method == null) return;
+        try {
+            method.invoke(null);
+        } catch (Throwable error) {
+            reportRuntimeError(error);
         }
     }
 

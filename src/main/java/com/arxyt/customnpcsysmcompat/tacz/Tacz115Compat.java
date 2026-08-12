@@ -1,10 +1,13 @@
 package com.arxyt.customnpcsysmcompat.tacz;
 
+import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
 import com.arxyt.customnpcsysmcompat.GunCompatFacade;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.tacz.guns.api.entity.ShootResult;
 import com.tacz.guns.api.item.GunTabType;
+import com.tacz.guns.api.item.IAmmo;
+import com.tacz.guns.api.item.IAmmoBox;
 import com.tacz.guns.api.item.IGun;
 import com.tacz.guns.api.item.gun.FireMode;
 import com.tacz.guns.resource.index.CommonGunIndex;
@@ -17,6 +20,7 @@ import noppes.npcs.entity.EntityNPCInterface;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.event.level.ExplosionEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import com.tacz.guns.api.event.common.EntityHurtByGunEvent;
@@ -29,6 +33,8 @@ import java.util.WeakHashMap;
 
 public final class Tacz115Compat implements GunCompatFacade {
     private final Map<EntityNPCInterface, String> equippedGuns =
+            java.util.Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<EntityNPCInterface, ShootResult> lastResults =
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
 
     public Tacz115Compat() {
@@ -90,6 +96,7 @@ public final class Tacz115Compat implements GunCompatFacade {
         float yaw = (float) -Math.toDegrees(Math.atan2(x, z));
         float pitch = (float) -Math.toDegrees(Math.atan2(y, Math.sqrt(x * x + z * z)));
         ShootResult result = operator.shoot(() -> pitch, () -> yaw);
+        traceResult(shooter, gunStack, gun, operator, result);
 
         return switch (result) {
             case SUCCESS -> new Action(successDelay(gun, gunStack, shooter), true);
@@ -116,7 +123,8 @@ public final class Tacz115Compat implements GunCompatFacade {
     public void stop(EntityNPCInterface shooter) {
         IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
         if (operator.getSynIsAiming()) operator.aim(false);
-        operator.cancelReload();
+        // Goal arbitration and small range changes are transient for CustomNPCs. Cancelling
+        // here repeatedly aborted TaCZ's reload state machine after the first magazine.
     }
 
     @Override
@@ -157,6 +165,41 @@ public final class Tacz115Compat implements GunCompatFacade {
             return 10 + shooter.getRandom().nextInt(5);
         }
         return 2;
+    }
+
+    private void traceResult(EntityNPCInterface shooter, ItemStack gunStack, IGun gun,
+                             IGunOperator operator, ShootResult result) {
+        ShootResult previous = lastResults.put(shooter, result);
+        if (previous == result && result == ShootResult.SUCCESS) return;
+
+        StringBuilder inventory = new StringBuilder();
+        final int[] compatible = {0};
+        Optional<net.minecraftforge.items.IItemHandler> capability =
+                shooter.getCapability(ForgeCapabilities.ITEM_HANDLER, null).resolve();
+        capability.ifPresent(handler -> {
+            inventory.append("slots=").append(handler.getSlots()).append('[');
+            for (int slot = 0; slot < handler.getSlots(); slot++) {
+                ItemStack stack = handler.getStackInSlot(slot);
+                if (stack.isEmpty()) continue;
+                boolean matches = false;
+                IAmmo ammo = IAmmo.getIAmmoOrNull(stack);
+                if (ammo != null) matches = ammo.isAmmoOfGun(gunStack, stack);
+                IAmmoBox box = stack.getItem() instanceof IAmmoBox value ? value : null;
+                if (box != null) matches |= box.isAmmoBoxOfGun(gunStack, stack);
+                if (matches) compatible[0]++;
+                inventory.append(slot).append(':').append(stack.getItem()).append('x')
+                        .append(stack.getCount()).append(matches ? "*" : "").append(',');
+            }
+            inventory.append(']');
+        });
+        if (capability.isEmpty()) inventory.append("capability=missing");
+
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[TACZ-GUN-TRACE] npcId={} tick={} result={} previous={} gun={} magazine={} " +
+                        "needCheckAmmo={} compatibleSlots={} reloadState={} inventory={}",
+                shooter.getId(), shooter.tickCount, result, previous, gun.getGunId(gunStack),
+                gun.getCurrentAmmoCount(gunStack), operator.needCheckAmmo(), compatible[0],
+                operator.getSynReloadState().getStateType(), inventory);
     }
 
     @SubscribeEvent

@@ -28,7 +28,10 @@ public final class YsmTaczGunGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return canUse();
+        LivingEntity target = npc.getTarget();
+        // Do not tear down an in-progress reload merely because strafing briefly moved the
+        // NPC across the preferred range boundary. The goal itself can navigate back.
+        return GunCompat.active(npc) && target != null && target.isAlive();
     }
 
     @Override
