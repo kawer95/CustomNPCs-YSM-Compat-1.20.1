@@ -7,6 +7,7 @@
   "mixins": [
     "DataDisplayMixin",
     "EntityAIRangedAttackMixin",
+    "EntityNpcItemCapabilityMixin",
     "EntitySharedFlagAccessor",
     "EntityNPCInterfaceMixin",
     "MobMeleeAttackMixin"
