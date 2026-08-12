@@ -23,6 +23,16 @@ class NpcMovementTrackerTest {
     }
 
     @Test
+    void reportsMinecraftYawFromActualMovementDirection() {
+        NpcMovementTracker tracker = new NpcMovementTracker();
+        tracker.sample(1, 0.0, 0.0);
+        assertEquals(-90.0F, tracker.sample(2, 0.2, 0.0).movementYaw(), 0.001F);
+        assertEquals(0.0F, tracker.sample(3, 0.2, 0.2).movementYaw(), 0.001F);
+        assertEquals(90.0F, tracker.sample(4, 0.0, 0.2).movementYaw(), 0.001F);
+        assertEquals(180.0F, Math.abs(tracker.sample(5, 0.0, 0.0).movementYaw()), 0.001F);
+    }
+
+    @Test
     void teleportAndLongTrackingGapDoNotTriggerWalking() {
         NpcMovementTracker tracker = new NpcMovementTracker();
         tracker.sample(30, 0.0, 0.0);

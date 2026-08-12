@@ -7,6 +7,7 @@ import com.arxyt.customnpcsysmcompat.animation.NpcAnimationFrame;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationInput;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationState;
 import com.arxyt.customnpcsysmcompat.animation.NpcMovementTracker;
+import com.arxyt.customnpcsysmcompat.animation.MeleeAttackSync;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import com.mojang.authlib.GameProfile;
@@ -121,11 +122,12 @@ public final class AnimatedNpcRenderBridge {
         RemotePlayer player = holder.player;
         NpcMovementTracker.Sample movement = preview ? NpcMovementTracker.Sample.STOPPED
                 : holder.movementTracker.sample(npc.tickCount, npc.getX(), npc.getZ());
-        float attackProgress = preview ? 0.0F : npc.getAttackAnim(partialTick);
+        float attackProgress = preview ? 0.0F : MeleeAttackSync.progress(npc, partialTick);
+        float bodyYaw = movement.walking() ? movement.movementYaw() : npc.yBodyRot;
         NpcAnimationInput input = new NpcAnimationInput(animationTick,
                 !preview && (npc.isDeadOrDying() || npc.isKilled()), preview ? 0 : npc.deathTime,
                 preview ? 0 : npc.hurtTime, attackProgress, movement.walking(), movement.speed(),
-                npc.yBodyRot, npc.yHeadRot);
+                bodyYaw, npc.yHeadRot);
         NpcAnimationFrame frame = holder.controller.update(input);
 
         player.tickCount = input.tick();
@@ -179,6 +181,7 @@ public final class AnimatedNpcRenderBridge {
         PREVIEW_PROXIES.clear();
         PROXY_PLAYERS.clear();
         PreviewOverrides.clearAll();
+        MeleeAttackSync.clear();
     }
 
     public static boolean isProxyPlayer(Entity entity) {

@@ -22,7 +22,7 @@ public abstract class GuiCreationEntitiesMixin extends GuiCreationScreenInterfac
         GuiCreationEntities self = (GuiCreationEntities) (Object) this;
         addRenderableWidget(Button.builder(Component.translatable("gui.customnpcs_ysm_compat.open"),
                         button -> openGui(new YsmModelSelectionScreen(self, npc)))
-                .bounds(this.guiLeft, this.guiTop + 24, 120, 20)
+                .bounds(this.guiLeft + this.imageWidth - 124, this.guiTop + this.imageHeight - 24, 120, 20)
                 .build());
     }
 }

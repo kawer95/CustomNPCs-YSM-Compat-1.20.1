@@ -7,10 +7,12 @@
   "mixins": [
     "DataDisplayMixin",
     "EntityAIRangedAttackMixin",
-    "EntityNPCInterfaceMixin"
+    "EntityNPCInterfaceMixin",
+    "MobMeleeAttackMixin"
   ],
   "client": [
     "client.GuiCreationEntitiesMixin",
+    "client.GuiMpmPartMixin",
     "client.YsmGenericRendererMixin"
   ],
   "injectors": {

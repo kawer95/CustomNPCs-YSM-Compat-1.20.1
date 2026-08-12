@@ -10,6 +10,7 @@ public final class NpcMovementTracker {
     private double lastZ;
     private boolean moving;
     private float speed;
+    private float movementYaw;
 
     public Sample sample(int tick, double x, double z) {
         if (lastTick == Integer.MIN_VALUE || tick < lastTick || tick - lastTick > 5) {
@@ -17,7 +18,7 @@ public final class NpcMovementTracker {
             return Sample.STOPPED;
         }
         if (tick == lastTick) {
-            return new Sample(moving, speed);
+            return new Sample(moving, speed, movementYaw);
         }
 
         int elapsedTicks = tick - lastTick;
@@ -35,8 +36,11 @@ public final class NpcMovementTracker {
             moving = moving
                     ? distancePerTick > WALK_STOP_DISTANCE : distancePerTick > WALK_START_DISTANCE;
             speed = moving ? clamp((float) distancePerTick * 4.0F, 0.1F, 1.0F) : 0.0F;
+            if (moving) {
+                movementYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+            }
         }
-        return new Sample(moving, speed);
+        return new Sample(moving, speed, movementYaw);
     }
 
     private void reset(int tick, double x, double z) {
@@ -45,13 +49,14 @@ public final class NpcMovementTracker {
         lastZ = z;
         moving = false;
         speed = 0.0F;
+        movementYaw = 0.0F;
     }
 
     private static float clamp(float value, float minimum, float maximum) {
         return Math.max(minimum, Math.min(maximum, value));
     }
 
-    public record Sample(boolean walking, float speed) {
-        public static final Sample STOPPED = new Sample(false, 0.0F);
+    public record Sample(boolean walking, float speed, float movementYaw) {
+        public static final Sample STOPPED = new Sample(false, 0.0F, 0.0F);
     }
 }
