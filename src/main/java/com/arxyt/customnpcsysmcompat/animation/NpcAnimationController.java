@@ -1,8 +1,6 @@
 package com.arxyt.customnpcsysmcompat.animation;
 
 public final class NpcAnimationController {
-    private static final int PLAYER_SWING_TICKS = 6;
-
     private NpcAnimationState state = NpcAnimationState.IDLE;
     private int stateStartedAt;
     private int lastTick = Integer.MIN_VALUE;
@@ -19,7 +17,7 @@ public final class NpcAnimationController {
         float walkSpeed = state == NpcAnimationState.WALK
                 ? Math.max(0.1F, Math.min(1.0F, input.walkSpeed())) : 0.0F;
         float attackProgress = state == NpcAnimationState.ATTACK
-                ? (elapsed % PLAYER_SWING_TICKS) / (float) PLAYER_SWING_TICKS : 0.0F;
+                ? Math.max(0.0F, Math.min(1.0F, input.attackProgress())) : 0.0F;
         int hurtTime = state == NpcAnimationState.HURT ? Math.max(1, input.hurtTime()) : 0;
         int deathTime = state == NpcAnimationState.DEATH
                 ? Math.max(Math.max(1, input.deathTime()), elapsed + 1) : 0;
@@ -35,7 +33,7 @@ public final class NpcAnimationController {
         if (input.hurtTime() > 0) {
             return NpcAnimationState.HURT;
         }
-        if (input.attacking()) {
+        if (input.attackProgress() > 0.001F) {
             return NpcAnimationState.ATTACK;
         }
         if (input.walking() || input.walkSpeed() > 0.03F) {

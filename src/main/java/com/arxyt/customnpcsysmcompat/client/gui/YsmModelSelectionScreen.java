@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.client.gui;
 
 import com.arxyt.customnpcsysmcompat.client.PreviewOverrides;
+import com.arxyt.customnpcsysmcompat.client.AnimatedNpcRenderBridge;
 import com.arxyt.customnpcsysmcompat.client.Ysm265Adapter;
 import com.arxyt.customnpcsysmcompat.client.YsmModelEntry;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
@@ -89,6 +90,7 @@ public final class YsmModelSelectionScreen extends Screen {
     private void apply() {
         YsmDisplayAccess.set(npc.display, new YsmDisplayData(enabled, selectedId));
         PreviewOverrides.clear(npc);
+        AnimatedNpcRenderBridge.discardPreview(npc);
         parent.save();
         Minecraft.getInstance().setScreen(parent);
     }
@@ -96,12 +98,14 @@ public final class YsmModelSelectionScreen extends Screen {
     private void restore() {
         YsmDisplayAccess.set(npc.display, YsmDisplayData.DISABLED);
         PreviewOverrides.clear(npc);
+        AnimatedNpcRenderBridge.discardPreview(npc);
         parent.save();
         Minecraft.getInstance().setScreen(parent);
     }
 
     private void cancel() {
         PreviewOverrides.clear(npc);
+        AnimatedNpcRenderBridge.discardPreview(npc);
         Minecraft.getInstance().setScreen(parent);
     }
 

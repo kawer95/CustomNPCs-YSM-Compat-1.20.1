@@ -5,6 +5,7 @@ import com.arxyt.customnpcsysmcompat.animation.NpcAnimationController;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationFrame;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationInput;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationState;
+import com.arxyt.customnpcsysmcompat.animation.NpcMovementTracker;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import com.mojang.authlib.GameProfile;
@@ -14,6 +15,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.Util;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -30,6 +32,10 @@ import java.util.WeakHashMap;
 public final class AnimatedNpcRenderBridge {
     private static final Map<EntityNPCInterface, AnimatedProxy> PROXIES =
             Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<EntityNPCInterface, AnimatedProxy> PREVIEW_PROXIES =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Entity, Boolean> PROXY_PLAYERS =
+            Collections.synchronizedMap(new WeakHashMap<>());
 
     private AnimatedNpcRenderBridge() {
     }
@@ -42,7 +48,8 @@ public final class AnimatedNpcRenderBridge {
         }
 
         YsmDisplayData selected = PreviewOverrides.get(npc);
-        if (selected == null) {
+        boolean preview = selected != null;
+        if (!preview) {
             selected = YsmDisplayAccess.get(npc.display);
         }
         if (!selected.enabled() || !Ysm265Adapter.hasModel(selected.modelId())) {
@@ -50,8 +57,11 @@ public final class AnimatedNpcRenderBridge {
         }
 
         try {
-            AnimatedProxy holder = proxyFor(npc);
-            sync(holder, npc);
+            AnimatedProxy holder = proxyFor(npc, preview);
+            long previewMillis = preview ? Util.getMillis() : 0L;
+            float renderPartialTick = preview ? (previewMillis % 50L) / 50.0F : partialTick;
+            int animationTick = preview ? (int) (previewMillis / 50L) : npc.tickCount;
+            sync(holder, npc, renderPartialTick, preview, animationTick);
             if (!selected.modelId().equals(holder.modelId)) {
                 if (!Ysm265Adapter.setPlayerModel(holder.player, selected.modelId())) {
                     return false;
@@ -67,7 +77,8 @@ public final class AnimatedNpcRenderBridge {
             try {
                 poseStack.scale(npc.scaleX / 5.0F * size, npc.scaleY / 5.0F * size,
                         npc.scaleZ / 5.0F * size);
-                rendered = Ysm265Adapter.renderPlayer(holder.player, yaw, partialTick,
+                float renderYaw = preview ? holder.player.yBodyRot : yaw;
+                rendered = Ysm265Adapter.renderPlayer(holder.player, renderYaw, renderPartialTick,
                         poseStack, buffers, packedLight);
             } finally {
                 poseStack.popPose();
@@ -84,8 +95,9 @@ public final class AnimatedNpcRenderBridge {
         }
     }
 
-    private static AnimatedProxy proxyFor(EntityNPCInterface original) {
-        AnimatedProxy existing = PROXIES.get(original);
+    private static AnimatedProxy proxyFor(EntityNPCInterface original, boolean preview) {
+        Map<EntityNPCInterface, AnimatedProxy> cache = preview ? PREVIEW_PROXIES : PROXIES;
+        AnimatedProxy existing = cache.get(original);
         ClientLevel level = Minecraft.getInstance().level;
         if (level == null) {
             throw new IllegalStateException("Cannot create YSM NPC proxy without a client level");
@@ -98,15 +110,20 @@ public final class AnimatedNpcRenderBridge {
                 .getBytes(StandardCharsets.UTF_8));
         String name = "YsmNpc" + Math.abs(original.getId() % 1_000_000);
         AnimatedProxy created = new AnimatedProxy(new RemotePlayer(level, new GameProfile(id, name)));
-        PROXIES.put(original, created);
+        cache.put(original, created);
+        PROXY_PLAYERS.put(created.player, Boolean.TRUE);
         return created;
     }
 
-    private static void sync(AnimatedProxy holder, EntityNPCInterface npc) {
+    private static void sync(AnimatedProxy holder, EntityNPCInterface npc, float partialTick,
+                             boolean preview, int animationTick) {
         RemotePlayer player = holder.player;
-        NpcAnimationInput input = new NpcAnimationInput(npc.tickCount,
-                npc.isDeadOrDying() || npc.isKilled(), npc.deathTime, npc.hurtTime,
-                npc.isAttacking(), npc.isWalking(), npc.walkAnimation.speed(1.0F),
+        NpcMovementTracker.Sample movement = preview ? NpcMovementTracker.Sample.STOPPED
+                : holder.movementTracker.sample(npc.tickCount, npc.getX(), npc.getZ());
+        float attackProgress = preview ? 0.0F : npc.getAttackAnim(partialTick);
+        NpcAnimationInput input = new NpcAnimationInput(animationTick,
+                !preview && (npc.isDeadOrDying() || npc.isKilled()), preview ? 0 : npc.deathTime,
+                preview ? 0 : npc.hurtTime, attackProgress, movement.walking(), movement.speed(),
                 npc.yBodyRot, npc.yHeadRot);
         NpcAnimationFrame frame = holder.controller.update(input);
 
@@ -116,13 +133,13 @@ public final class AnimatedNpcRenderBridge {
         player.setPose(Pose.STANDING);
         player.setOnGround(npc.onGround());
         player.setXRot(npc.getXRot());
-        player.xRotO = npc.xRotO;
+        player.xRotO = preview ? npc.getXRot() : npc.xRotO;
         player.setYRot(frame.bodyYaw());
-        player.yRotO = npc.yRotO;
+        player.yRotO = preview ? frame.bodyYaw() : npc.yRotO;
         player.yBodyRot = frame.bodyYaw();
-        player.yBodyRotO = npc.yBodyRotO;
+        player.yBodyRotO = preview ? frame.bodyYaw() : npc.yBodyRotO;
         player.yHeadRot = frame.headYaw();
-        player.yHeadRotO = npc.yHeadRotO;
+        player.yHeadRotO = preview ? frame.headYaw() : npc.yHeadRotO;
 
         if (holder.lastSyncedTick != input.tick()) {
             player.walkAnimation.update(frame.walkSpeed(), 1.0F);
@@ -132,7 +149,7 @@ public final class AnimatedNpcRenderBridge {
         player.deathTime = frame.deathTime();
         player.swinging = frame.state() == NpcAnimationState.ATTACK;
         player.swingingArm = InteractionHand.MAIN_HAND;
-        player.swingTime = Math.round(frame.attackProgress() * 6.0F);
+        player.swingTime = preview ? 0 : npc.swingTime;
         player.attackAnim = frame.attackProgress();
         player.oAttackAnim = frame.attackProgress();
         player.setSprinting(false);
@@ -155,17 +172,32 @@ public final class AnimatedNpcRenderBridge {
 
     public static void clearCaches() {
         PROXIES.clear();
+        PREVIEW_PROXIES.clear();
+        PROXY_PLAYERS.clear();
         PreviewOverrides.clearAll();
+    }
+
+    public static boolean isProxyPlayer(Entity entity) {
+        return PROXY_PLAYERS.containsKey(entity);
+    }
+
+    public static void discardPreview(EntityNPCInterface npc) {
+        AnimatedProxy removed = PREVIEW_PROXIES.remove(npc);
+        if (removed != null) {
+            PROXY_PLAYERS.remove(removed.player);
+        }
     }
 
     private static final class AnimatedProxy {
         private final RemotePlayer player;
         private final NpcAnimationController controller = new NpcAnimationController();
+        private final NpcMovementTracker movementTracker = new NpcMovementTracker();
         private int lastSyncedTick = Integer.MIN_VALUE;
         private String modelId = "";
 
         private AnimatedProxy(RemotePlayer player) {
             this.player = player;
         }
+
     }
 }
