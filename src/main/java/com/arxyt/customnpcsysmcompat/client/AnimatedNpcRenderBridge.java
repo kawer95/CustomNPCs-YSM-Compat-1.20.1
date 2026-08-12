@@ -162,6 +162,7 @@ public final class AnimatedNpcRenderBridge {
         player.swingTime = attacking ? attack.swingTime() : 0;
         player.attackAnim = attacking ? attack.currentProgress() : 0.0F;
         player.oAttackAnim = attacking ? attack.previousProgress() : 0.0F;
+        traceAttack(holder, npc, partialTick, attack, frame, attacking, player);
         player.setSprinting(false);
         player.setShiftKeyDown(false);
         player.setSwimming(false);
@@ -172,6 +173,26 @@ public final class AnimatedNpcRenderBridge {
         if (!preview) {
             GunCompat.syncClientState(npc, player);
         }
+    }
+
+    private static void traceAttack(AnimatedProxy holder, EntityNPCInterface npc, float partialTick,
+                                    MeleeAttackSync.Sample attack, NpcAnimationFrame frame,
+                                    boolean attacking, RemotePlayer player) {
+        if (attack.active() && holder.lastAttackDebugTick != npc.tickCount) {
+            holder.lastAttackDebugTick = npc.tickCount;
+            CustomNpcsYsmCompat.LOGGER.info(
+                    "[YSM-ATTACK-TRACE][CLIENT-PROXY] npcId={} tick={} partial={} rawSwinging={} rawSwingTime={} rawAttackAnim={} sampleSwingTime={} samplePrev={} sampleCurrent={} sampleInterpolated={} controller={} proxySwinging={} proxySwingTime={} proxyPrev={} proxyCurrent={}",
+                    npc.getId(), npc.tickCount, partialTick, npc.swinging, npc.swingTime,
+                    npc.getAttackAnim(partialTick), attack.swingTime(), attack.previousProgress(),
+                    attack.currentProgress(), attack.interpolatedProgress(), frame.state(), attacking,
+                    player.swingTime, player.oAttackAnim, player.attackAnim);
+        }
+        if (holder.attackDebugActive && !attack.active()) {
+            CustomNpcsYsmCompat.LOGGER.info(
+                    "[YSM-ATTACK-TRACE][CLIENT-END] npcId={} tick={} controller={} proxySwinging={}",
+                    npc.getId(), npc.tickCount, frame.state(), player.swinging);
+        }
+        holder.attackDebugActive = attack.active();
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -209,6 +230,8 @@ public final class AnimatedNpcRenderBridge {
         private final NpcOrientationTracker orientationTracker = new NpcOrientationTracker();
         private NpcOrientationTracker.Frame orientation = NpcOrientationTracker.fixed(0.0F, 0.0F);
         private int lastSyncedTick = Integer.MIN_VALUE;
+        private int lastAttackDebugTick = Integer.MIN_VALUE;
+        private boolean attackDebugActive;
         private String modelId = "";
 
         private AnimatedProxy(RemotePlayer player) {
