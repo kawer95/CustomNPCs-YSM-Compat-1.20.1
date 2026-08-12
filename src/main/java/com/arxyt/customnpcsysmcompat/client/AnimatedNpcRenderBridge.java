@@ -8,6 +8,7 @@ import com.arxyt.customnpcsysmcompat.animation.NpcAnimationInput;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationState;
 import com.arxyt.customnpcsysmcompat.animation.NpcMovementTracker;
 import com.arxyt.customnpcsysmcompat.animation.MeleeAttackSync;
+import com.arxyt.customnpcsysmcompat.animation.NpcOrientationTracker;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import com.mojang.authlib.GameProfile;
@@ -79,7 +80,7 @@ public final class AnimatedNpcRenderBridge {
             try {
                 poseStack.scale(npc.scaleX / 5.0F * size, npc.scaleY / 5.0F * size,
                         npc.scaleZ / 5.0F * size);
-                float renderYaw = preview ? holder.player.yBodyRot : yaw;
+                float renderYaw = holder.orientation.interpolatedBodyYaw(renderPartialTick);
                 rendered = Ysm265Adapter.renderPlayer(holder.player, renderYaw, renderPartialTick,
                         poseStack, buffers, packedLight);
             } finally {
@@ -122,12 +123,17 @@ public final class AnimatedNpcRenderBridge {
         RemotePlayer player = holder.player;
         NpcMovementTracker.Sample movement = preview ? NpcMovementTracker.Sample.STOPPED
                 : holder.movementTracker.sample(npc.tickCount, npc.getX(), npc.getZ());
-        float attackProgress = preview ? 0.0F : MeleeAttackSync.progress(npc, partialTick);
-        float bodyYaw = movement.walking() ? movement.movementYaw() : npc.yBodyRot;
+        MeleeAttackSync.Sample attack = preview ? MeleeAttackSync.Sample.INACTIVE
+                : MeleeAttackSync.sample(npc, partialTick);
+        float targetBodyYaw = movement.walking() ? movement.movementYaw() : npc.yBodyRot;
+        NpcOrientationTracker.Frame orientation = preview
+                ? NpcOrientationTracker.fixed(targetBodyYaw, npc.yHeadRot)
+                : holder.orientationTracker.sample(npc.tickCount, targetBodyYaw, npc.yHeadRot);
+        holder.orientation = orientation;
         NpcAnimationInput input = new NpcAnimationInput(animationTick,
                 !preview && (npc.isDeadOrDying() || npc.isKilled()), preview ? 0 : npc.deathTime,
-                preview ? 0 : npc.hurtTime, attackProgress, movement.walking(), movement.speed(),
-                bodyYaw, npc.yHeadRot);
+                preview ? 0 : npc.hurtTime, attack.interpolatedProgress(), movement.walking(), movement.speed(),
+                orientation.bodyYaw(), orientation.headYaw());
         NpcAnimationFrame frame = holder.controller.update(input);
 
         player.tickCount = input.tick();
@@ -138,11 +144,11 @@ public final class AnimatedNpcRenderBridge {
         player.setXRot(npc.getXRot());
         player.xRotO = preview ? npc.getXRot() : npc.xRotO;
         player.setYRot(frame.bodyYaw());
-        player.yRotO = preview ? frame.bodyYaw() : npc.yRotO;
+        player.yRotO = orientation.previousBodyYaw();
         player.yBodyRot = frame.bodyYaw();
-        player.yBodyRotO = preview ? frame.bodyYaw() : npc.yBodyRotO;
+        player.yBodyRotO = orientation.previousBodyYaw();
         player.yHeadRot = frame.headYaw();
-        player.yHeadRotO = preview ? frame.headYaw() : npc.yHeadRotO;
+        player.yHeadRotO = orientation.previousHeadYaw();
 
         if (holder.lastSyncedTick != input.tick()) {
             player.walkAnimation.update(frame.walkSpeed(), 1.0F);
@@ -150,11 +156,12 @@ public final class AnimatedNpcRenderBridge {
         }
         player.hurtTime = frame.hurtTime();
         player.deathTime = frame.deathTime();
-        player.swinging = frame.state() == NpcAnimationState.ATTACK;
+        boolean attacking = attack.active() && frame.state() == NpcAnimationState.ATTACK;
+        player.swinging = attacking;
         player.swingingArm = InteractionHand.MAIN_HAND;
-        player.swingTime = preview ? 0 : npc.swingTime;
-        player.attackAnim = frame.attackProgress();
-        player.oAttackAnim = frame.attackProgress();
+        player.swingTime = attacking ? attack.swingTime() : 0;
+        player.attackAnim = attacking ? attack.currentProgress() : 0.0F;
+        player.oAttackAnim = attacking ? attack.previousProgress() : 0.0F;
         player.setSprinting(false);
         player.setShiftKeyDown(false);
         player.setSwimming(false);
@@ -199,6 +206,8 @@ public final class AnimatedNpcRenderBridge {
         private final RemotePlayer player;
         private final NpcAnimationController controller = new NpcAnimationController();
         private final NpcMovementTracker movementTracker = new NpcMovementTracker();
+        private final NpcOrientationTracker orientationTracker = new NpcOrientationTracker();
+        private NpcOrientationTracker.Frame orientation = NpcOrientationTracker.fixed(0.0F, 0.0F);
         private int lastSyncedTick = Integer.MIN_VALUE;
         private String modelId = "";
 
