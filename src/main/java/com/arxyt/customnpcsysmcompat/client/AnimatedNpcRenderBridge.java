@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.client;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
+import com.arxyt.customnpcsysmcompat.GunCompat;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationController;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationFrame;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationInput;
@@ -158,6 +159,9 @@ public final class AnimatedNpcRenderBridge {
 
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             player.setItemSlot(slot, npc.getItemBySlot(slot));
+        }
+        if (!preview) {
+            GunCompat.syncClientState(npc, player);
         }
     }
 

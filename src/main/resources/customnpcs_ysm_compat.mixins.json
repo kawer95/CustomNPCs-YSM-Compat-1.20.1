@@ -5,7 +5,9 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "customnpcs_ysm_compat.refmap.json",
   "mixins": [
-    "DataDisplayMixin"
+    "DataDisplayMixin",
+    "EntityAIRangedAttackMixin",
+    "EntityNPCInterfaceMixin"
   ],
   "client": [
     "client.GuiCreationEntitiesMixin",
