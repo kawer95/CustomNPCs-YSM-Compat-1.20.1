@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class EntityAIRangedAttackMixin {
     @Shadow @Final private EntityNPCInterface npc;
 
-    @Inject(method = "canUse", at = @At("HEAD"), cancellable = true, remap = false)
+    @Inject(method = "canUse", at = @At("HEAD"), cancellable = true, remap = true)
     private void customnpcsYsmCompat$disableVanillaProjectile(CallbackInfoReturnable<Boolean> cir) {
         if (GunCompat.active(npc)) {
             cir.setReturnValue(false);

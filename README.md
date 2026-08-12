@@ -14,7 +14,7 @@ Both client and server must install the compatibility mod. Every client must ins
 
 Open a CustomNPC's model editor and select **YSM Model**. The page supports search, live preview, apply, cancel, and restoring the original CustomNPC model.
 
-Version 0.3.1 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. With TaCZ present, the real NPC owns the gun state while the proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations.
+Version 0.3.2 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. With TaCZ present, the real NPC owns the gun state while the proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations.
 
 The projectile slot and eight drop slots form the NPC's TaCZ ammunition inventory. Normal ammunition, ammo boxes and infinite ammo boxes are handled by TaCZ. Gun timing comes from the gun pack; CustomNPC ranged damage, projectile speed and burst timing do not override it. Server distance defaults are 64 blocks for sniper rifles, 48 for rifles and other weapons, and 32 for pistols, shotguns and SMGs.
 
@@ -26,4 +26,4 @@ The two required mod jars are resolved from `../原型模组` by `build.gradle`.
 .\gradlew.bat clean test build
 ```
 
-The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.3.1.jar`.
+The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.3.2.jar`.
