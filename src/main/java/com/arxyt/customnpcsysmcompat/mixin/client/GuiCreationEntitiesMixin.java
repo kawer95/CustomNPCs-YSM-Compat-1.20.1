@@ -13,6 +13,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = GuiCreationEntities.class, remap = false)
 public abstract class GuiCreationEntitiesMixin extends GuiCreationScreenInterface {
+    // CustomNPCs' 400x240 model page leaves x=124..244, y=23..43 unused.
+    // The bottom-right area is occupied by its x=202..322, y=210..230 rotation slider.
+    private static final int YSM_BUTTON_X = 124;
+    private static final int YSM_BUTTON_Y = 23;
+    private static final int YSM_BUTTON_WIDTH = 120;
+
     protected GuiCreationEntitiesMixin(EntityNPCInterface npc) {
         super(npc);
     }
@@ -22,7 +28,8 @@ public abstract class GuiCreationEntitiesMixin extends GuiCreationScreenInterfac
         GuiCreationEntities self = (GuiCreationEntities) (Object) this;
         addRenderableWidget(Button.builder(Component.translatable("gui.customnpcs_ysm_compat.open"),
                         button -> openGui(new YsmModelSelectionScreen(self, npc)))
-                .bounds(this.guiLeft + this.imageWidth - 124, this.guiTop + this.imageHeight - 24, 120, 20)
+                .bounds(this.guiLeft + YSM_BUTTON_X, this.guiTop + YSM_BUTTON_Y,
+                        YSM_BUTTON_WIDTH, 20)
                 .build());
     }
 }
