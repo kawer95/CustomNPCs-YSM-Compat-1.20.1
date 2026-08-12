@@ -14,13 +14,13 @@ public final class ClientLifecycle {
 
     @SubscribeEvent
     public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
-        StaticNpcRenderBridge.clearCaches();
+        AnimatedNpcRenderBridge.clearCaches();
     }
 
     @SubscribeEvent
     public static void onLevelUnload(LevelEvent.Unload event) {
         if (event.getLevel().isClientSide()) {
-            StaticNpcRenderBridge.clearCaches();
+            AnimatedNpcRenderBridge.clearCaches();
         }
     }
 }

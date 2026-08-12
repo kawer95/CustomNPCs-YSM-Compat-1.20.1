@@ -10,6 +10,6 @@ public final class CustomNpcsYsmCompat {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public CustomNpcsYsmCompat() {
-        LOGGER.info("CustomNPCs YSM Compat 0.1.0 loaded");
+        LOGGER.info("CustomNPCs YSM Compat loaded");
     }
 }

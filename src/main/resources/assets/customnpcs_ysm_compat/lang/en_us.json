@@ -1,11 +1,11 @@
 {
   "gui.customnpcs_ysm_compat.open": "YSM Model",
-  "gui.customnpcs_ysm_compat.title": "CustomNPCs - Static YSM Model",
+  "gui.customnpcs_ysm_compat.title": "CustomNPCs - YSM Model",
   "gui.customnpcs_ysm_compat.search": "Search model name or ID",
   "gui.customnpcs_ysm_compat.apply": "Apply",
   "gui.customnpcs_ysm_compat.cancel": "Cancel",
   "gui.customnpcs_ysm_compat.restore": "Restore vanilla",
-  "gui.customnpcs_ysm_compat.enabled": "Enable static YSM model",
+  "gui.customnpcs_ysm_compat.enabled": "Enable YSM model",
   "gui.customnpcs_ysm_compat.missing": "The selected model is missing on this client",
   "gui.customnpcs_ysm_compat.empty": "No matching YSM models"
 }

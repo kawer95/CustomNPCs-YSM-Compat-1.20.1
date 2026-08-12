@@ -1,6 +1,6 @@
 # CustomNPCs YSM Compat
 
-Forge 1.20.1 compatibility mod that lets a CustomNPC use any locally loaded Yes Steve Model as a strictly static model.
+Forge 1.20.1 compatibility mod that lets a CustomNPC use any locally loaded Yes Steve Model.
 
 ## Required versions
 
@@ -12,7 +12,7 @@ Both client and server must install the compatibility mod. Every client must ins
 
 Open a CustomNPC's model editor and select **YSM Model**. The page supports search, live preview, apply, cancel, and restoring the original CustomNPC model.
 
-The 0.1.0 implementation intentionally freezes all YSM bone animation. Only the whole model follows the NPC body yaw.
+Version 0.2.0 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, walking, independent head rotation, attacks, hurt reactions and death while preserving the NPC's body rotation, scale, equipment and name tag. State priority is death, hurt, attack, walking, then idle.
 
 ## Build
 
@@ -22,4 +22,4 @@ The two required mod jars are resolved from `../原型模组` by `build.gradle`.
 .\gradlew.bat clean test build
 ```
 
-The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.1.0.jar`.
+The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.2.0.jar`.

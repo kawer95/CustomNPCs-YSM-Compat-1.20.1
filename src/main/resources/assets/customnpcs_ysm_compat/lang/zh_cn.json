@@ -1,11 +1,11 @@
 {
   "gui.customnpcs_ysm_compat.open": "YSM 模型",
-  "gui.customnpcs_ysm_compat.title": "CustomNPCs - YSM 静态模型",
+  "gui.customnpcs_ysm_compat.title": "CustomNPCs - YSM 模型",
   "gui.customnpcs_ysm_compat.search": "搜索模型名称或 ID",
   "gui.customnpcs_ysm_compat.apply": "应用",
   "gui.customnpcs_ysm_compat.cancel": "取消",
   "gui.customnpcs_ysm_compat.restore": "恢复原版",
-  "gui.customnpcs_ysm_compat.enabled": "启用 YSM 静态模型",
+  "gui.customnpcs_ysm_compat.enabled": "启用 YSM 模型",
   "gui.customnpcs_ysm_compat.missing": "当前模型在本客户端缺失",
   "gui.customnpcs_ysm_compat.empty": "没有匹配的 YSM 模型"
 }
