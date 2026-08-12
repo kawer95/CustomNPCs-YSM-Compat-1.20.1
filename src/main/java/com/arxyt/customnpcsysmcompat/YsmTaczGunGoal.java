@@ -13,6 +13,10 @@ public final class YsmTaczGunGoal extends Goal {
     private int strafeTime = -1;
     private boolean clockwise;
     private boolean backwards;
+    private double lastTraceX;
+    private double lastTraceZ;
+    private boolean tracePositionReady;
+    private boolean wasRetreating;
 
     public YsmTaczGunGoal(EntityNPCInterface npc) {
         this.npc = npc;
@@ -47,6 +51,8 @@ public final class YsmTaczGunGoal extends Goal {
     public void start() {
         actionCooldown = 0;
         strafeTime = -1;
+        tracePositionReady = false;
+        wasRetreating = false;
     }
 
     @Override
@@ -79,6 +85,8 @@ public final class YsmTaczGunGoal extends Goal {
         double distance = npc.distanceTo(target);
         double desired = effectiveRange();
         boolean canSee = npc.getSensing().hasLineOfSight(target);
+        boolean retreating = false;
+        String maneuverName = npc.isPassenger() ? "PASSENGER" : "UNDECIDED";
 
         if (npc.isPassenger()) {
             npc.getNavigation().stop();
@@ -86,6 +94,7 @@ public final class YsmTaczGunGoal extends Goal {
         } else if (command.active()) {
             CommandGunTactics.Maneuver maneuver = CommandGunTactics.decideControlled(
                     command.commandedAttack(), canSee, distance, desired, command.closeQuarters());
+            maneuverName = maneuver.name();
             switch (maneuver) {
                 case PURSUE -> {
                     strafeTime = -1;
@@ -93,6 +102,7 @@ public final class YsmTaczGunGoal extends Goal {
                     npc.getMoveControl().strafe(0.0F, 0.0F);
                 }
                 case RETREAT -> {
+                    retreating = true;
                     npc.getNavigation().stop();
                     npc.getMoveControl().strafe(-0.5F, 0.0F);
                     faceTargetWhileRetreating(target);
@@ -106,6 +116,7 @@ public final class YsmTaczGunGoal extends Goal {
                 }
             }
         } else if (!canSee || distance > desired) {
+            maneuverName = "NATIVE_PURSUE";
             strafeTime = -1;
             npc.getNavigation().moveTo(target, 1.0D);
         } else {
@@ -117,12 +128,15 @@ public final class YsmTaczGunGoal extends Goal {
             }
             if (distance > desired * 0.65D) backwards = false;
             else if (distance < desired * 0.60D) backwards = true;
+            retreating = backwards;
+            maneuverName = backwards ? "NATIVE_RETREAT" : "NATIVE_STRAFE";
             npc.getMoveControl().strafe(
                     (float) (backwards ? -YsmTaczConfig.FORWARD_SPEED.get() : YsmTaczConfig.FORWARD_SPEED.get()),
                     (float) (clockwise ? YsmTaczConfig.SIDEWAYS_SPEED.get() : -YsmTaczConfig.SIDEWAYS_SPEED.get()));
         }
 
         npc.setYRot(Mth.rotateIfNecessary(npc.getYRot(), npc.yHeadRot, 30.0F));
+        traceRetreat(target, retreating, maneuverName, distance, desired, canSee, command);
         if (canSee && distance <= desired && --actionCooldown <= 0) {
             try {
                 GunCompatFacade.Action action = facade.operate(npc, target);
@@ -132,6 +146,40 @@ public final class YsmTaczGunGoal extends Goal {
                 actionCooldown = 100;
             }
         }
+    }
+
+    private void traceRetreat(LivingEntity target, boolean retreating, String maneuver,
+                              double distance, double desired, boolean canSee,
+                              DominionCommandBridge.Snapshot command) {
+        double dx = tracePositionReady ? npc.getX() - lastTraceX : 0.0D;
+        double dz = tracePositionReady ? npc.getZ() - lastTraceZ : 0.0D;
+        double moved = Math.sqrt(dx * dx + dz * dz);
+        float movementYaw = moved > 1.0E-5D
+                ? (float) Math.toDegrees(Math.atan2(-dx, dz)) : Float.NaN;
+        lastTraceX = npc.getX();
+        lastTraceZ = npc.getZ();
+        tracePositionReady = true;
+        if (!retreating && !wasRetreating) return;
+        if (retreating && wasRetreating && npc.tickCount % 5 != 0) return;
+
+        double targetDx = target.getX() - npc.getX();
+        double targetDz = target.getZ() - npc.getZ();
+        float targetYaw = (float) Math.toDegrees(Math.atan2(-targetDx, targetDz));
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[YSM-RETREAT-TRACE][SERVER-GOAL] npcId={} tick={} retreating={} maneuver={} commandActive={} commandedAttack={} cqb={} distance={} desired={} canSee={} pos=({},{}) moved={} movementYaw={} rotation={} bodyYaw={} headYaw={} targetYaw={} bodyError={} headError={} forwardInput={} sidewaysInput={} delta=({},{},{})",
+                npc.getId(), npc.tickCount, retreating, maneuver, command.active(), command.commandedAttack(),
+                command.closeQuarters(), decimal(distance), decimal(desired), canSee,
+                decimal(npc.getX()), decimal(npc.getZ()), decimal(moved), decimal(movementYaw),
+                decimal(npc.getYRot()), decimal(npc.yBodyRot), decimal(npc.yHeadRot), decimal(targetYaw),
+                decimal(Mth.wrapDegrees(targetYaw - npc.yBodyRot)),
+                decimal(Mth.wrapDegrees(targetYaw - npc.yHeadRot)), decimal(npc.zza), decimal(npc.xxa),
+                decimal(npc.getDeltaMovement().x), decimal(npc.getDeltaMovement().y),
+                decimal(npc.getDeltaMovement().z));
+        wasRetreating = retreating;
+    }
+
+    private static String decimal(double value) {
+        return Double.isFinite(value) ? String.format(java.util.Locale.ROOT, "%.3f", value) : "nan";
     }
 
     private void faceTargetWhileRetreating(LivingEntity target) {

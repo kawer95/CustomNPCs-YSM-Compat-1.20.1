@@ -167,6 +167,7 @@ public final class AnimatedNpcRenderBridge {
         float targetBodyYaw = movement.walking()
                 ? (backpedalling ? npc.yHeadRot : movement.movementYaw())
                 : npc.yBodyRot;
+        traceRetreatRender(holder, npc, movement, backpedalling, targetBodyYaw);
         NpcOrientationTracker.Frame orientation = preview
                 ? NpcOrientationTracker.fixed(targetBodyYaw, npc.yHeadRot)
                 : holder.orientationTracker.sample(npc.tickCount, targetBodyYaw, npc.yHeadRot);
@@ -275,6 +276,20 @@ public final class AnimatedNpcRenderBridge {
         return npc.isKilled() && npc.stats.hideKilledBody && npc.deathTime > 20;
     }
 
+    private static void traceRetreatRender(AnimatedProxy holder, EntityNPCInterface npc,
+                                           NpcMovementTracker.Sample movement,
+                                           boolean backpedalling, float targetBodyYaw) {
+        if (!backpedalling && !holder.wasBackpedalling) return;
+        if (backpedalling && holder.wasBackpedalling && npc.tickCount % 5 != 0) return;
+        float difference = net.minecraft.util.Mth.wrapDegrees(movement.movementYaw() - npc.yHeadRot);
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[YSM-RETREAT-TRACE][CLIENT-PROXY] npcId={} tick={} backpedalling={} walking={} speed={} movementYaw={} npcRotation={} npcBodyYaw={} npcHeadYaw={} directionDifference={} selectedProxyBodyYaw={} previousProxyBodyYaw={}",
+                npc.getId(), npc.tickCount, backpedalling, movement.walking(), movement.speed(),
+                movement.movementYaw(), npc.getYRot(), npc.yBodyRot, npc.yHeadRot, difference,
+                targetBodyYaw, holder.orientation.bodyYaw());
+        holder.wasBackpedalling = backpedalling;
+    }
+
     private static Visibility visibility(EntityNPCInterface npc, Player viewer) {
         int displayMode = npc.display.getVisible();
         boolean hasWand = viewer != null && viewer.getMainHandItem().getItem() == CustomItems.wand;
@@ -374,6 +389,7 @@ public final class AnimatedNpcRenderBridge {
         private int lastSyncedTick = Integer.MIN_VALUE;
         private int lastAttackDebugTick = Integer.MIN_VALUE;
         private boolean attackDebugActive;
+        private boolean wasBackpedalling;
         private int deathStartedAt = Integer.MIN_VALUE;
         private String lastProxyDebugState = "";
         private int ysmFoodLevel = -1;
