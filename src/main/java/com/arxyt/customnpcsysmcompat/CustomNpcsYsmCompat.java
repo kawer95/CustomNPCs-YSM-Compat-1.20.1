@@ -20,9 +20,18 @@ public final class CustomNpcsYsmCompat {
             GunCompat.load();
         }
         if (ModList.get().isLoaded("dominionsword")) {
-            DominionCommandBridge.load();
-            com.arxyt.dominionsword.api.DominionControlApi.registerAdapter(new DominionYsmNpcAdapter());
+            loadOptionalDominionCompat();
         }
         LOGGER.info("CustomNPCs YSM Compat loaded");
+    }
+
+    /** Keeps Dominion API symbols out of the mandatory mod entrypoint's constant pool. */
+    private static void loadOptionalDominionCompat() {
+        try {
+            Class.forName("com.arxyt.customnpcsysmcompat.DominionCompatBootstrap")
+                    .getMethod("load").invoke(null);
+        } catch (Throwable error) {
+            LOGGER.error("Dominion Sword was found but its optional compatibility adapter failed to load", error);
+        }
     }
 }
