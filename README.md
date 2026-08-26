@@ -14,9 +14,11 @@ Dominion Sword `1.31.0+` is optional. Under Dominion control, a YSM CustomNPC ke
 
 Both client and server must install the compatibility mod. Every client must install the same YSM model packs; model files are not sent over the network.
 
-Open a CustomNPC's model editor and select **YSM Model**. The page supports search, live preview, apply, cancel, and restoring the original CustomNPC model.
+Open a CustomNPC's model editor and select **YSM Model**. The page supports search, live preview, apply, cancel, and restoring the original CustomNPC model. Formal YSM `config_forms` model tweaks (`checkbox`, `range`, and `radio`) can be edited per NPC and are retained with the NPC.
 
-Version 0.3.6 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. With TaCZ present, the real NPC owns the gun state while the proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations. Melee synchronization diagnostics use the `YSM-ATTACK-TRACE` log prefix.
+For the local player, the same formal `config_forms` choices made through YSM's **Z** menu are also retained automatically. They are stored per player UUID and per model in `config/customnpcs_ysm_compat_player_tweaks.json`, then restored after the YSM player model is ready. The file contains only form IDs and selected values—never raw Molang. Values that YSM normally synchronizes are sent using YSM's own packet; its intentionally local-only `v.roaming.*` values remain local.
+
+Version 0.4.1 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. With TaCZ present, the real NPC owns the gun state while the proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations. Melee synchronization diagnostics use the `YSM-ATTACK-TRACE` log prefix.
 
 The projectile slot and eight drop slots form the NPC's TaCZ ammunition inventory. Normal ammunition, ammo boxes and infinite ammo boxes are handled by TaCZ. Gun timing comes from the gun pack; CustomNPC ranged damage, projectile speed and burst timing do not override it. Server distance defaults are 64 blocks for sniper rifles, 48 for rifles and other weapons, and 32 for pistols, shotguns and SMGs.
 
@@ -25,7 +27,7 @@ The projectile slot and eight drop slots form the NPC's TaCZ ammunition inventor
 The two required mod jars are resolved from `../原型模组` by `build.gradle`.
 
 ```powershell
-.\gradlew.bat clean test build -Pdominionsword_jar=../DominionSword-1.20.1/build/libs/dominionsword-1.31.0.jar
+.\gradlew.bat clean test build -Pdominionsword_jar=../DominionSword-1.20.1/build/libs/dominionsword-1.32.6.jar
 ```
 
-The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.3.6.jar`.
+The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.1.jar`.
