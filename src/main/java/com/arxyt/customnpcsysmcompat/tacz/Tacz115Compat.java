@@ -3,6 +3,8 @@ package com.arxyt.customnpcsysmcompat.tacz;
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
 import com.arxyt.customnpcsysmcompat.DominionCommandBridge;
 import com.arxyt.customnpcsysmcompat.GunCompatFacade;
+import com.arxyt.customnpcsysmcompat.GunCompat;
+import com.arxyt.customnpcsysmcompat.NpcCrawlState;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.tacz.guns.api.entity.ShootResult;
@@ -131,6 +133,34 @@ public final class Tacz115Compat implements GunCompatFacade {
         if (shouldExitAim(operator.getSynIsAiming(), queuedAttack, forceExitAim)) operator.aim(false);
         // Goal arbitration and small range changes are transient for CustomNPCs. Cancelling
         // here repeatedly aborted TaCZ's reload state machine after the first magazine.
+    }
+
+    /**
+     * Bridges CNPC's physical {@code CRAWL} action to TaCZ's authoritative
+     * crawl request.  TaCZ owns the final decision: its tick hook cancels the
+     * request for unsupported guns, swimming, jumping, passengers and entities
+     * that are not on the ground.
+     */
+    @Override
+    public void syncCrawlState(EntityNPCInterface shooter) {
+        ItemStack gunStack = shooter.getMainHandItem();
+        IGun gun = IGun.getIGunOrNull(gunStack);
+        IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
+        // Do not re-request a state that TaCZ has already rejected.  In particular,
+        // can_crawl=false weapons would otherwise be reset by TaCZ at every tick tail
+        // and requested again at every following tick head.
+        boolean canRequest = GunCompat.active(shooter)
+                && gun != null
+                && gun.isCanCrawl(gunStack)
+                && shooter.onGround()
+                && !shooter.isPassenger()
+                && !shooter.isSwimming()
+                && !shooter.isSpectator();
+        boolean requested = NpcCrawlState.requestsTaczCrawl(shooter.currentAnimation, canRequest);
+        boolean current = operator.getDataHolder().isCrawling;
+        if (current == requested) return;
+
+        operator.crawl(requested);
     }
 
     @Override

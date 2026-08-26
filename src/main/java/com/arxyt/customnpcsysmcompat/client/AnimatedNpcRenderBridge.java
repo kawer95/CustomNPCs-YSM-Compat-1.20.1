@@ -2,6 +2,7 @@ package com.arxyt.customnpcsysmcompat.client;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
 import com.arxyt.customnpcsysmcompat.GunCompat;
+import com.arxyt.customnpcsysmcompat.NpcCrawlState;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationController;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationFrame;
 import com.arxyt.customnpcsysmcompat.animation.NpcAnimationInput;
@@ -248,7 +249,11 @@ public final class AnimatedNpcRenderBridge {
         player.zo = preview ? npc.getZ() : npc.zo;
         player.setDeltaMovement(npc.getDeltaMovement());
         player.fallDistance = npc.fallDistance;
-        player.setPose(Pose.STANDING);
+        // CNPC's CRAWL action is a physical prone state (not merely a model animation).
+        // A real TaCZ-crawling player uses Pose.SWIMMING while isSwimming remains false;
+        // reproducing exactly that combination lets YSM select its prone/tactical state
+        // without falsely turning a ground crawl into water-swimming behavior.
+        player.setPose(NpcCrawlState.isCrawling(npc) ? Pose.SWIMMING : Pose.STANDING);
         player.setOnGround(npc.onGround());
         player.setXRot(npc.getXRot());
         player.xRotO = preview ? npc.getXRot() : npc.xRotO;

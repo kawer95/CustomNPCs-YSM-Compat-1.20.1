@@ -33,6 +33,16 @@ public interface GunCompatFacade {
         stop(shooter);
     }
 
+    /**
+     * Mirrors the CustomNPCs native crawl action into the optional gun system.
+     *
+     * <p>This is invoked before the NPC's normal living tick continues, so a
+     * weapon adapter can validate and apply stance state before its own tick
+     * hook updates pose and shooting data.</p>
+     */
+    default void syncCrawlState(EntityNPCInterface shooter) {
+    }
+
     default void syncClientState(LivingEntity source, LivingEntity renderProxy) {
     }
 }
