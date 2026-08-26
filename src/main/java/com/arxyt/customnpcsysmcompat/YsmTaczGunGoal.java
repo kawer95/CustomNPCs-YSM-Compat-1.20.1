@@ -112,7 +112,7 @@ public final class YsmTaczGunGoal extends Goal {
             npc.getMoveControl().strafe(0.0F, 0.0F);
         } else if (command.active()) {
             CommandGunTactics.Maneuver maneuver = CommandGunTactics.decideControlled(
-                    command.commandedAttack(), canSee, distance, desired, command.closeQuarters());
+                    command.commandedAttack(), canSee, distance, desired, command.closeQuarters(), command.prone());
             maneuverName = maneuver.name();
             switch (maneuver) {
                 case PURSUE -> {
@@ -156,7 +156,7 @@ public final class YsmTaczGunGoal extends Goal {
 
         npc.setYRot(Mth.rotateIfNecessary(npc.getYRot(), npc.yHeadRot, 30.0F));
         traceRetreat(target, retreating, maneuverName, distance, desired, canSee, command);
-        if (canSee && distance <= desired && --actionCooldown <= 0) {
+        if (CommandGunTactics.canFire(command.prone(), canSee, distance, desired) && --actionCooldown <= 0) {
             try {
                 GunCompatFacade.Action action = facade.operate(npc, target);
                 actionCooldown = action.delayTicks();

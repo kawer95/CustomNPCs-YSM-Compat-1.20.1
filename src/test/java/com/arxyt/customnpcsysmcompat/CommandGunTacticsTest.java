@@ -36,10 +36,19 @@ final class CommandGunTacticsTest {
     @Test
     void onlyIdleMovementLockedCommandStateIsAStationarySentry() {
         DominionCommandBridge.Snapshot hold = new DominionCommandBridge.Snapshot(
-                true, false, true, false, false, null);
+                true, false, true, false, false, false, null);
         DominionCommandBridge.Snapshot move = new DominionCommandBridge.Snapshot(
-                true, true, false, false, false, null);
+                true, true, false, false, false, false, null);
         assertEquals(true, hold.stationarySentry());
         assertEquals(false, move.stationarySentry());
+    }
+
+    @Test
+    void proneCommandAttackHoldsPositionButFiresAtAnyVisibleDistance() {
+        assertEquals(CommandGunTactics.Maneuver.HOLD,
+                CommandGunTactics.decideControlled(true, false, 80.0D, 32.0D, false, true));
+        assertEquals(true, CommandGunTactics.canFire(true, true, 80.0D, 32.0D));
+        assertEquals(false, CommandGunTactics.canFire(true, false, 4.0D, 32.0D));
+        assertEquals(false, CommandGunTactics.canFire(false, true, 80.0D, 32.0D));
     }
 }

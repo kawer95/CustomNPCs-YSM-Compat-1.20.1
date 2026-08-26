@@ -15,7 +15,7 @@ public final class DominionCommandBridge {
     private static final String DOMINION_ORDER = "DominionOrder";
     private static final String DOMINION_ATTACK_QUEUE = "DominionAttackQueue";
     private static final String ATTACK_ORDER = "attack";
-    private static final Snapshot UNAVAILABLE = new Snapshot(false, false, false, false, false, null);
+    private static final Snapshot UNAVAILABLE = new Snapshot(false, false, false, false, false, false, null);
     private static final AtomicBoolean ERROR_REPORTED = new AtomicBoolean();
     private static volatile Access access;
 
@@ -35,6 +35,7 @@ public final class DominionCommandBridge {
                     unreflect(lookup, view.getMethod("autonomousMovementBlocked")),
                     unreflect(lookup, view.getMethod("nativeApproachBlocked")),
                     unreflect(lookup, view.getMethod("closeQuarters")),
+                    optionalUnreflect(lookup, view, "prone"),
                     unreflect(lookup, view.getMethod("attackTarget")));
             CustomNpcsYsmCompat.LOGGER.info("Dominion Sword command coordination enabled");
         } catch (ReflectiveOperationException | LinkageError error) {
@@ -54,6 +55,7 @@ public final class DominionCommandBridge {
                     (boolean) current.autonomousMovementBlocked.invoke(view),
                     (boolean) current.nativeApproachBlocked.invoke(view),
                     (boolean) current.closeQuarters.invoke(view),
+                    current.prone != null && (boolean) current.prone.invoke(view),
                     target instanceof LivingEntity living ? living : null);
         } catch (Throwable error) {
             report(error);
@@ -93,6 +95,16 @@ public final class DominionCommandBridge {
         return lookup.unreflect(method);
     }
 
+    /** Dominion 1.32.7 introduced prone; older installed builds simply report false. */
+    private static MethodHandle optionalUnreflect(MethodHandles.Lookup lookup, Class<?> owner, String method)
+            throws IllegalAccessException {
+        try {
+            return unreflect(lookup, owner.getMethod(method));
+        } catch (NoSuchMethodException ignored) {
+            return null;
+        }
+    }
+
     private static void report(Throwable error) {
         if (ERROR_REPORTED.compareAndSet(false, true)) {
             CustomNpcsYsmCompat.LOGGER.error(
@@ -101,9 +113,9 @@ public final class DominionCommandBridge {
     }
 
     public record Snapshot(boolean active, boolean nativeCombatBlocked,
-                           boolean autonomousMovementBlocked, boolean nativeApproachBlocked,
-                           boolean closeQuarters,
-                           LivingEntity attackTarget) {
+                            boolean autonomousMovementBlocked, boolean nativeApproachBlocked,
+                            boolean closeQuarters, boolean prone,
+                            LivingEntity attackTarget) {
         public boolean commandedAttack() {
             return active && !nativeCombatBlocked && attackTarget != null;
         }
@@ -115,8 +127,9 @@ public final class DominionCommandBridge {
     }
 
     private record Access(MethodHandle commandView, MethodHandle active,
-                          MethodHandle nativeCombatBlocked, MethodHandle autonomousMovementBlocked,
-                          MethodHandle nativeApproachBlocked, MethodHandle closeQuarters,
-                          MethodHandle attackTarget) {
+                           MethodHandle nativeCombatBlocked, MethodHandle autonomousMovementBlocked,
+                           MethodHandle nativeApproachBlocked, MethodHandle closeQuarters,
+                           MethodHandle prone,
+                           MethodHandle attackTarget) {
     }
 }
