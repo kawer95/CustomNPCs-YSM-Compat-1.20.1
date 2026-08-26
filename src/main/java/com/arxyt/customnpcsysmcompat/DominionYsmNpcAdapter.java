@@ -34,6 +34,12 @@ public final class DominionYsmNpcAdapter implements DominionUnitAdapter {
     public boolean attack(ServerPlayer player, Entity entity, LivingEntity target) {
         if (!(entity instanceof EntityNPCInterface npc) || !GunCompat.active(npc)
                 || target == null || !target.isAlive()) return false;
+        LivingEntity previous = npc.getTarget();
+        if (previous != null && previous.isAlive() && !previous.getUUID().equals(target.getUUID())) {
+            // Dominion invokes this adapter every tick. Only a genuinely live
+            // target replacement is an explicit fresh player order.
+            NpcGunTargetReaction.clear(npc);
+        }
         npc.setTarget(target);
         return true;
     }
@@ -52,15 +58,18 @@ public final class DominionYsmNpcAdapter implements DominionUnitAdapter {
     public boolean clearAttack(ServerPlayer player, Entity entity) {
         if (!(entity instanceof EntityNPCInterface npc)) return false;
         npc.setTarget(null);
-        stopGun(npc);
+        NpcGunTargetReaction.clear(npc);
+        // Dominion clears its persistent queue after adapter callbacks. Force the TaCZ adapter
+        // to leave ADS now instead of treating that brief same-tick queue as a target hand-off.
+        stopGun(npc, true);
         return true;
     }
 
-    private static void stopGun(EntityNPCInterface npc) {
+    private static void stopGun(EntityNPCInterface npc, boolean forceExitAim) {
         GunCompatFacade facade = GunCompat.facade();
         if (facade == null) return;
         try {
-            facade.stop(npc);
+            facade.stop(npc, forceExitAim);
         } catch (Throwable error) {
             GunCompat.reportRuntimeError(error);
         }

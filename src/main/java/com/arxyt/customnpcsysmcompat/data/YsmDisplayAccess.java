@@ -9,11 +9,13 @@ public final class YsmDisplayAccess {
 
     public static YsmDisplayData get(DataDisplay display) {
         IYsmNpcDisplay extension = (IYsmNpcDisplay) display;
-        return new YsmDisplayData(extension.customnpcsYsmCompat$isEnabled(), extension.customnpcsYsmCompat$getModelId());
+        return new YsmDisplayData(extension.customnpcsYsmCompat$isEnabled(), extension.customnpcsYsmCompat$getModelId(),
+                extension.customnpcsYsmCompat$getTweakProfiles());
     }
 
     public static void set(DataDisplay display, YsmDisplayData data) {
         IYsmNpcDisplay extension = (IYsmNpcDisplay) display;
+        extension.customnpcsYsmCompat$setTweakProfiles(data.tweakProfiles());
         extension.customnpcsYsmCompat$setModelId(data.modelId());
         extension.customnpcsYsmCompat$setEnabled(data.enabled());
     }

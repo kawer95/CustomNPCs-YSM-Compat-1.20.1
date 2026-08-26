@@ -18,7 +18,8 @@
     "client.MpmPartAbstractClientMixin",
     "client.TaczBulletRendererMixin",
     "client.YsmLivingRenderPipelineMixin",
-    "client.YsmGenericRendererMixin"
+    "client.YsmGenericRendererMixin",
+    "client.YsmAnimationRouletteMixin"
   ],
   "injectors": {
     "defaultRequire": 1

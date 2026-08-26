@@ -9,6 +9,7 @@ public final class DominionCompatBootstrap {
 
     public static void load() {
         DominionCommandBridge.load();
+        DominionCombatBalance.load();
         DominionControlApi.registerAdapter(new DominionYsmNpcAdapter());
     }
 }

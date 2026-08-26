@@ -58,6 +58,18 @@ public final class GunCompat {
         }
     }
 
+    /** Requests optional gun-system crawl state before the NPC's living tick runs. */
+    public static void syncCrawlState(EntityNPCInterface npc) {
+        GunCompatFacade current = facade;
+        if (current != null && npc != null) {
+            try {
+                current.syncCrawlState(npc);
+            } catch (Throwable error) {
+                reportRuntimeError(error);
+            }
+        }
+    }
+
     public static void syncClientState(net.minecraft.world.entity.LivingEntity source,
                                        net.minecraft.world.entity.LivingEntity renderProxy) {
         GunCompatFacade current = facade;

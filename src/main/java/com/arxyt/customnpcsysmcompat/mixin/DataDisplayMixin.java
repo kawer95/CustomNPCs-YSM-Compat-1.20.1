@@ -3,6 +3,7 @@ package com.arxyt.customnpcsysmcompat.mixin;
 import com.arxyt.customnpcsysmcompat.api.IYsmNpcDisplay;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import com.arxyt.customnpcsysmcompat.data.YsmNbtCodec;
+import com.arxyt.customnpcsysmcompat.data.YsmTweakProfile;
 import net.minecraft.nbt.CompoundTag;
 import noppes.npcs.entity.data.DataDisplay;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,17 +13,22 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.Map;
+
 @Mixin(value = DataDisplay.class, remap = false)
 public abstract class DataDisplayMixin implements IYsmNpcDisplay {
     @Unique
     private boolean customnpcsYsmCompat$enabled;
     @Unique
     private String customnpcsYsmCompat$modelId = "";
+    @Unique
+    private Map<String, YsmTweakProfile> customnpcsYsmCompat$tweakProfiles = Map.of();
 
     @Inject(method = "save", at = @At("RETURN"), remap = false)
     private void customnpcsYsmCompat$save(CompoundTag root, CallbackInfoReturnable<CompoundTag> cir) {
         YsmNbtCodec.write(cir.getReturnValue(),
-                new YsmDisplayData(customnpcsYsmCompat$enabled, customnpcsYsmCompat$modelId));
+                new YsmDisplayData(customnpcsYsmCompat$enabled, customnpcsYsmCompat$modelId,
+                        customnpcsYsmCompat$tweakProfiles));
     }
 
     @Inject(method = "readToNBT", at = @At("TAIL"), remap = false)
@@ -30,6 +36,7 @@ public abstract class DataDisplayMixin implements IYsmNpcDisplay {
         YsmDisplayData data = YsmNbtCodec.read(root);
         customnpcsYsmCompat$modelId = data.modelId();
         customnpcsYsmCompat$enabled = data.enabled();
+        customnpcsYsmCompat$tweakProfiles = data.tweakProfiles();
     }
 
     @Override
@@ -56,5 +63,15 @@ public abstract class DataDisplayMixin implements IYsmNpcDisplay {
         if (customnpcsYsmCompat$modelId.isEmpty()) {
             customnpcsYsmCompat$enabled = false;
         }
+    }
+
+    @Override
+    public Map<String, YsmTweakProfile> customnpcsYsmCompat$getTweakProfiles() {
+        return customnpcsYsmCompat$tweakProfiles;
+    }
+
+    @Override
+    public void customnpcsYsmCompat$setTweakProfiles(Map<String, YsmTweakProfile> profiles) {
+        customnpcsYsmCompat$tweakProfiles = new YsmDisplayData(false, "", profiles).tweakProfiles();
     }
 }

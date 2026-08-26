@@ -39,13 +39,24 @@ public final class YsmTaczSentryGunGoal extends Goal {
 
     @Override
     public void tick() {
-        LivingEntity target = validTarget(DominionCommandBridge.snapshot(npc));
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        LivingEntity target = validTarget(command);
         GunCompatFacade facade = GunCompat.facade();
         if (target == null || facade == null) return;
 
         // These are invariants, not steering suggestions: this goal may aim and fire only.
         npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
+        DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
+        if (NpcGunTargetReaction.blocks(npc, target, settings)) {
+            try {
+                facade.stop(npc);
+            } catch (Throwable error) {
+                GunCompat.reportRuntimeError(error);
+            }
+            return;
+        }
+        NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
         npc.setYRot(Mth.rotateIfNecessary(npc.getYRot(), npc.yHeadRot, 30.0F));
 

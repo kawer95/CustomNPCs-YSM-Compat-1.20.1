@@ -14,12 +14,16 @@ public final class ClientLifecycle {
 
     @SubscribeEvent
     public static void onLogout(ClientPlayerNetworkEvent.LoggingOut event) {
+        YsmPlayerTweakPersistence.flushNow();
+        YsmPlayerTweakPersistence.resetSession();
         AnimatedNpcRenderBridge.clearCaches();
     }
 
     @SubscribeEvent
     public static void onLevelUnload(LevelEvent.Unload event) {
         if (event.getLevel().isClientSide()) {
+            YsmPlayerTweakPersistence.flushNow();
+            YsmPlayerTweakPersistence.resetSession();
             AnimatedNpcRenderBridge.clearCaches();
         }
     }

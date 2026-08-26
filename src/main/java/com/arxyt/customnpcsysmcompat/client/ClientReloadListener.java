@@ -16,6 +16,9 @@ public final class ClientReloadListener {
     @SubscribeEvent
     public static void register(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener((ResourceManagerReloadListener) resources ->
-                AnimatedNpcRenderBridge.clearCaches());
+                {
+                    YsmPlayerTweakPersistence.resetSession();
+                    AnimatedNpcRenderBridge.clearCaches();
+                });
     }
 }
