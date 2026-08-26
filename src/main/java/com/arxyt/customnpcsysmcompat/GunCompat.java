@@ -58,6 +58,16 @@ public final class GunCompat {
         }
     }
 
+    /** Uses the active optional adapter's authoritative weapon-category metadata. */
+    public static boolean isMachineGun(ItemStack stack) {
+        try {
+            return facade != null && facade.isMachineGun(stack);
+        } catch (Throwable error) {
+            reportRuntimeError(error);
+            return false;
+        }
+    }
+
     /** Requests optional gun-system crawl state before the NPC's living tick runs. */
     public static void syncCrawlState(EntityNPCInterface npc) {
         GunCompatFacade current = facade;

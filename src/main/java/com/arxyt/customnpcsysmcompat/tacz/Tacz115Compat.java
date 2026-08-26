@@ -68,6 +68,13 @@ public final class Tacz115Compat implements GunCompatFacade {
     }
 
     @Override
+    public boolean isMachineGun(ItemStack stack) {
+        return gunIndex(stack)
+                .map(index -> GunTabType.MG.name().equalsIgnoreCase(index.getType()))
+                .orElse(false);
+    }
+
+    @Override
     public RangeClass rangeClass(ItemStack stack) {
         return gunIndex(stack).map(index -> {
             String type = index.getType().toLowerCase(Locale.ROOT);
@@ -214,23 +221,11 @@ public final class Tacz115Compat implements GunCompatFacade {
     }
 
     private static int successDelay(IGun gun, ItemStack stack, EntityNPCInterface shooter) {
-        boolean machineGun = gunIndex(stack)
-                .map(index -> GunTabType.MG.name().equalsIgnoreCase(index.getType()))
-                .orElse(false);
         FireMode mode = gun.getFireMode(stack);
-        return successDelayTicks(machineGun, mode == FireMode.SEMI || mode == FireMode.BURST,
-                shooter.getRandom().nextInt(5));
-    }
-
-    /**
-     * Requests the next MG shot on the immediately following server tick. TaCZ still owns
-     * the actual weapon fire-rate/cooldown check, so this cannot make an MG exceed its
-     * declared rate of fire; it only prevents the CNPC goal's former two-tick gate from
-     * artificially interrupting sustained fire.
-     */
-    static int successDelayTicks(boolean machineGun, boolean semiOrBurst, int randomSemiDelay) {
-        if (machineGun) return 1;
-        return semiOrBurst ? 10 + Math.max(0, Math.min(4, randomSemiDelay)) : 2;
+        if (mode == FireMode.SEMI || mode == FireMode.BURST) {
+            return 10 + shooter.getRandom().nextInt(5);
+        }
+        return 2;
     }
 
     /**

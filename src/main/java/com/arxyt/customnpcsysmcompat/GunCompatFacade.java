@@ -15,6 +15,11 @@ public interface GunCompatFacade {
 
     boolean isGun(ItemStack stack);
 
+    /** True only when the optional gun system classifies this weapon as a machine gun. */
+    default boolean isMachineGun(ItemStack stack) {
+        return false;
+    }
+
     RangeClass rangeClass(ItemStack stack);
 
     Action operate(EntityNPCInterface shooter, LivingEntity target);

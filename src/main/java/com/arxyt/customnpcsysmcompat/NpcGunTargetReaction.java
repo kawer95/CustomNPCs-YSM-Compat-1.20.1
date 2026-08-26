@@ -17,7 +17,9 @@ import java.util.UUID;
  * <p>The timing and angle calculation deliberately match Dominion Sword's
  * commander-maid logic: a static reaction lasts twenty ticks, while dynamic
  * reaction time ranges from ten to forty ticks according to the turn needed to
- * face the next target.</p>
+ * face the next target. TaCZ machine guns use a one-tick minimum for the same
+ * dynamic range, allowing an adjacent forward target to be acquired quickly while
+ * preserving the forty-tick about-face delay.</p>
  */
 public final class NpcGunTargetReaction {
     private static final String LAST_GUN_TARGET = "DominionYsmNpcLastGunTarget";
@@ -30,6 +32,7 @@ public final class NpcGunTargetReaction {
     private static final String REACTION_CANDIDATE = "DominionYsmNpcReactionCandidate";
     private static final int STATIC_REACTION_TICKS = 20;
     private static final int MIN_DYNAMIC_REACTION_TICKS = 10;
+    private static final int MIN_MACHINE_GUN_DYNAMIC_REACTION_TICKS = 1;
     private static final int MAX_DYNAMIC_REACTION_TICKS = 40;
 
     private NpcGunTargetReaction() {
@@ -71,6 +74,7 @@ public final class NpcGunTargetReaction {
         }
 
         long now = npc.level().getGameTime();
+        boolean machineGun = GunCompat.isMachineGun(npc.getMainHandItem());
         if (!data.hasUUID(REACTION_TARGET) || !previousId.equals(data.getUUID(REACTION_TARGET))
                 || !data.contains(REACTION_STARTED)) {
             Vec3 view = npc.getViewVector(1.0F).normalize();
@@ -80,7 +84,8 @@ public final class NpcGunTargetReaction {
             data.putDouble(REACTION_VIEW_Y, view.y);
             data.putDouble(REACTION_VIEW_Z, view.z);
             data.remove(REACTION_CANDIDATE);
-            data.putLong(REACTION_UNTIL, now + reactionDuration(settings.dynamicTargetReaction(), 0.0D));
+            data.putLong(REACTION_UNTIL, now + reactionDuration(settings.dynamicTargetReaction(), 0.0D,
+                    machineGun));
         }
 
         if (settings.dynamicTargetReaction() && (!data.hasUUID(REACTION_CANDIDATE)
@@ -91,7 +96,7 @@ public final class NpcGunTargetReaction {
             double angle = Math.toDegrees(Math.acos(Mth.clamp(view.dot(targetDirection), -1.0D, 1.0D)));
             data.putUUID(REACTION_CANDIDATE, candidate.getUUID());
             data.putLong(REACTION_UNTIL, data.getLong(REACTION_STARTED)
-                    + reactionDuration(true, angle));
+                    + reactionDuration(true, angle, machineGun));
         }
         return data.getLong(REACTION_UNTIL) > now;
     }
@@ -116,10 +121,20 @@ public final class NpcGunTargetReaction {
     }
 
     static int reactionDuration(boolean dynamic, double angleDegrees) {
+        return reactionDuration(dynamic, angleDegrees, false);
+    }
+
+    /**
+     * Dynamic target replacement remains angle-based for every weapon. MG metadata only
+     * lowers the forward-target floor from ten ticks to one; it never shortens the
+     * forty-tick about-face or the fixed-reaction configuration.
+     */
+    static int reactionDuration(boolean dynamic, double angleDegrees, boolean machineGun) {
         if (!dynamic) return STATIC_REACTION_TICKS;
         double safeAngle = Double.isFinite(angleDegrees) ? Mth.clamp(angleDegrees, 0.0D, 180.0D) : 0.0D;
-        return MIN_DYNAMIC_REACTION_TICKS + (int) Math.round(safeAngle / 180.0D
-                * (MAX_DYNAMIC_REACTION_TICKS - MIN_DYNAMIC_REACTION_TICKS));
+        int minimum = machineGun ? MIN_MACHINE_GUN_DYNAMIC_REACTION_TICKS : MIN_DYNAMIC_REACTION_TICKS;
+        return minimum + (int) Math.round(safeAngle / 180.0D
+                * (MAX_DYNAMIC_REACTION_TICKS - minimum));
     }
 
     /** Explicit commander target selection must not inherit an automatic target-switch delay. */

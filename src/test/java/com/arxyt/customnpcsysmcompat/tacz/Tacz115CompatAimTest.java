@@ -43,16 +43,4 @@ final class Tacz115CompatAimTest {
         assertFalse(Tacz115Compat.shouldExitAim(false, true, true));
     }
 
-    @Test
-    void machineGunRequestsTheNextShotOnTheFollowingTick() {
-        assertEquals(1, Tacz115Compat.successDelayTicks(true, false, 0));
-        assertEquals(1, Tacz115Compat.successDelayTicks(true, true, 4));
-    }
-
-    @Test
-    void nonMachineGunCadenceRemainsUnchanged() {
-        assertEquals(2, Tacz115Compat.successDelayTicks(false, false, 0));
-        assertEquals(10, Tacz115Compat.successDelayTicks(false, true, 0));
-        assertEquals(14, Tacz115Compat.successDelayTicks(false, true, 4));
-    }
 }

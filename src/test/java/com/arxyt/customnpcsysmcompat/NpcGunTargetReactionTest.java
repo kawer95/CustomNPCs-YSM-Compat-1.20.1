@@ -23,6 +23,14 @@ final class NpcGunTargetReactionTest {
     }
 
     @Test
+    void machineGunDynamicReactionUsesOneToFortyTickAngleRange() {
+        assertEquals(1, NpcGunTargetReaction.reactionDuration(true, 0.0D, true));
+        assertEquals(21, NpcGunTargetReaction.reactionDuration(true, 90.0D, true));
+        assertEquals(40, NpcGunTargetReaction.reactionDuration(true, 180.0D, true));
+        assertEquals(20, NpcGunTargetReaction.reactionDuration(false, 0.0D, true));
+    }
+
+    @Test
     void explicitDominionTargetBypassesAutomaticTargetReaction() {
         assertTrue(NpcGunTargetReaction.bypassesReactionWindow(true));
         assertFalse(NpcGunTargetReaction.bypassesReactionWindow(false));
