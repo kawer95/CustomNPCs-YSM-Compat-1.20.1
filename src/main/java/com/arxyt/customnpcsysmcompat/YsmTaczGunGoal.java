@@ -7,6 +7,13 @@ import noppes.npcs.entity.EntityNPCInterface;
 
 import java.util.EnumSet;
 
+/**
+ * Server-side TaCZ combat goal for a YSM-enabled CustomNPC.
+ *
+ * <p>It owns only movement and firing cadence. TaCZ retains ammunition and
+ * weapon-state ownership, while the optional Dominion bridge may impose the
+ * shared post-kill reaction delay without becoming a runtime requirement.</p>
+ */
 public final class YsmTaczGunGoal extends Goal {
     private final EntityNPCInterface npc;
     private int actionCooldown;
@@ -81,6 +88,18 @@ public final class YsmTaczGunGoal extends Goal {
             return;
         }
         if (command.commandedAttack() && npc.getTarget() != target) npc.setTarget(target);
+        DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
+        if (NpcGunTargetReaction.blocks(npc, target, settings)) {
+            npc.getNavigation().stop();
+            npc.getMoveControl().strafe(0.0F, 0.0F);
+            try {
+                facade.stop(npc);
+            } catch (Throwable error) {
+                GunCompat.reportRuntimeError(error);
+            }
+            return;
+        }
+        NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
         double distance = npc.distanceTo(target);
         double desired = effectiveRange();

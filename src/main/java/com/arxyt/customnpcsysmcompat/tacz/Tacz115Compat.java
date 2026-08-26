@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.tacz;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
+import com.arxyt.customnpcsysmcompat.DominionCombatBalance;
 import com.arxyt.customnpcsysmcompat.GunCompatFacade;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
@@ -14,6 +15,7 @@ import com.tacz.guns.resource.index.CommonGunIndex;
 import com.tacz.guns.entity.sync.ModSyncedEntityData;
 import com.tacz.guns.resource.pojo.data.gun.GunData;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import noppes.npcs.entity.EntityNPCInterface;
@@ -31,6 +33,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.WeakHashMap;
 
+/**
+ * TaCZ 1.1.5+ adapter that delegates all weapon state to TaCZ while exposing a
+ * small, fail-safe gun-control surface to YSM CustomNPC goals.
+ *
+ * <p>The adapter is instantiated only when TaCZ is present. Dominion Sword
+ * settings are read through a local optional bridge, so a missing or failed
+ * Dominion installation leaves TaCZ shooting unchanged.</p>
+ */
 public final class Tacz115Compat implements GunCompatFacade {
     private final Map<EntityNPCInterface, String> equippedGuns =
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
@@ -95,7 +105,8 @@ public final class Tacz115Compat implements GunCompatFacade {
         double z = target.getZ() - shooter.getZ();
         float yaw = (float) -Math.toDegrees(Math.atan2(x, z));
         float pitch = (float) -Math.toDegrees(Math.atan2(y, Math.sqrt(x * x + z * z)));
-        ShootResult result = operator.shoot(() -> pitch, () -> yaw);
+        float adjustedYaw = yaw + dominionAimError(shooter, target, x, z);
+        ShootResult result = operator.shoot(() -> pitch, () -> adjustedYaw);
         traceResult(shooter, gunStack, gun, operator, result);
 
         return switch (result) {
@@ -165,6 +176,26 @@ public final class Tacz115Compat implements GunCompatFacade {
             return 10 + shooter.getRandom().nextInt(5);
         }
         return 2;
+    }
+
+    /** Applies Dominion's shared TaCZ accuracy setting without changing TaCZ weapon spread. */
+    private static float dominionAimError(EntityNPCInterface shooter, LivingEntity target, double x, double z) {
+        DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
+        if (!settings.available()) return 0.0F;
+        return aimErrorDegrees(settings.taczAccuracy(), target.getBbWidth(), Math.sqrt(x * x + z * z),
+                shooter.getRandom().nextInt(100), shooter.getRandom().nextDouble(), shooter.getRandom().nextBoolean());
+    }
+
+    static float aimErrorDegrees(int accuracy, double targetWidth, double horizontalDistance,
+                                 int accuracyRoll, double magnitudeRoll, boolean positive) {
+        int safeAccuracy = Math.max(0, Math.min(100, accuracy));
+        if (Math.floorMod(accuracyRoll, 100) < safeAccuracy) return 0.0F;
+        double safeDistance = Math.max(0.1D, horizontalDistance);
+        double safeWidth = Math.max(0.35D, targetWidth * 0.65D);
+        double randomMagnitude = Double.isFinite(magnitudeRoll) ? Mth.clamp(magnitudeRoll, 0.0D, 1.0D) : 0.0D;
+        float error = (float) (Math.toDegrees(Math.atan2(safeWidth, safeDistance)) + 2.0D
+                + randomMagnitude * 3.0D);
+        return positive ? error : -error;
     }
 
     private void traceResult(EntityNPCInterface shooter, ItemStack gunStack, IGun gun,

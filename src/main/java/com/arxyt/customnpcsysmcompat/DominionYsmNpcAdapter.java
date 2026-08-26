@@ -34,6 +34,12 @@ public final class DominionYsmNpcAdapter implements DominionUnitAdapter {
     public boolean attack(ServerPlayer player, Entity entity, LivingEntity target) {
         if (!(entity instanceof EntityNPCInterface npc) || !GunCompat.active(npc)
                 || target == null || !target.isAlive()) return false;
+        LivingEntity previous = npc.getTarget();
+        if (previous != null && previous.isAlive() && !previous.getUUID().equals(target.getUUID())) {
+            // Dominion invokes this adapter every tick. Only a genuinely live
+            // target replacement is an explicit fresh player order.
+            NpcGunTargetReaction.clear(npc);
+        }
         npc.setTarget(target);
         return true;
     }
@@ -52,6 +58,7 @@ public final class DominionYsmNpcAdapter implements DominionUnitAdapter {
     public boolean clearAttack(ServerPlayer player, Entity entity) {
         if (!(entity instanceof EntityNPCInterface npc)) return false;
         npc.setTarget(null);
+        NpcGunTargetReaction.clear(npc);
         stopGun(npc);
         return true;
     }
