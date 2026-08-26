@@ -52,6 +52,10 @@ public final class Tacz115Compat implements GunCompatFacade {
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
     private final Map<EntityNPCInterface, Integer> lastProneAimTraceTick =
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<EntityNPCInterface, Integer> lastCrawlStateTraceTick =
+            java.util.Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<EntityNPCInterface, Integer> lastProneHitTraceTick =
+            java.util.Collections.synchronizedMap(new WeakHashMap<>());
 
     public Tacz115Compat() {
         MinecraftForge.EVENT_BUS.register(this);
@@ -160,17 +164,19 @@ public final class Tacz115Compat implements GunCompatFacade {
         // Do not re-request a state that TaCZ has already rejected.  In particular,
         // can_crawl=false weapons would otherwise be reset by TaCZ at every tick tail
         // and requested again at every following tick head.
-        boolean canRequest = GunCompat.active(shooter)
-                && gun != null
-                && gun.isCanCrawl(gunStack)
-                && shooter.onGround()
-                && !shooter.isPassenger()
-                && !shooter.isSwimming()
-                && !shooter.isSpectator();
+        boolean activeGun = GunCompat.active(shooter);
+        boolean gunCanCrawl = gun != null && gun.isCanCrawl(gunStack);
+        boolean onGround = shooter.onGround();
+        boolean passenger = shooter.isPassenger();
+        boolean swimming = shooter.isSwimming();
+        boolean spectator = shooter.isSpectator();
+        boolean canRequest = activeGun && gunCanCrawl && onGround && !passenger && !swimming && !spectator;
         boolean requested = NpcCrawlState.requestsTaczCrawl(shooter.currentAnimation, canRequest);
         boolean current = operator.getDataHolder().isCrawling;
         if (current == requested) return;
 
+        traceCrawlStateMismatch(shooter, current, requested, activeGun, gunCanCrawl,
+                onGround, passenger, swimming, spectator);
         operator.crawl(requested);
     }
 
@@ -336,11 +342,56 @@ public final class Tacz115Compat implements GunCompatFacade {
         return Double.isFinite(value) ? String.format(Locale.ROOT, "%.3f", value) : "nan";
     }
 
+    /** Logs a throttled reason whenever the visible CNPC Crawl and TaCZ crawl states disagree. */
+    private void traceCrawlStateMismatch(EntityNPCInterface shooter, boolean current, boolean requested,
+                                         boolean activeGun, boolean gunCanCrawl, boolean onGround,
+                                         boolean passenger, boolean swimming, boolean spectator) {
+        Integer previousTick = lastCrawlStateTraceTick.get(shooter);
+        if (previousTick != null && shooter.tickCount - previousTick < 10) return;
+        lastCrawlStateTraceTick.put(shooter, shooter.tickCount);
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[TACZ-CRAWL-STATE-TRACE] npcId={} tick={} nativeCrawl={} taczCrawlBefore={} requested={} " +
+                        "activeGun={} gunCanCrawl={} onGround={} passenger={} swimming={} spectator={} " +
+                        "pose={} delta=({},{},{})",
+                shooter.getId(), shooter.tickCount, NpcCrawlState.isCrawling(shooter), current, requested,
+                activeGun, gunCanCrawl, onGround, passenger, swimming, spectator, shooter.getPose(),
+                decimal(shooter.getDeltaMovement().x), decimal(shooter.getDeltaMovement().y),
+                decimal(shooter.getDeltaMovement().z));
+    }
+
     @SubscribeEvent
     public void protectFactionRelations(EntityHurtByGunEvent.Pre event) {
-        if (shouldCancel(event.getAttacker(), event.getHurtEntity())) {
+        boolean canceled = shouldCancel(event.getAttacker(), event.getHurtEntity());
+        traceProneGunHit(event, canceled);
+        if (canceled) {
             event.setCanceled(true);
         }
+    }
+
+    /**
+     * A real TaCZ entity-hit trace, complementary to the pre-shot ray diagnostic. It is
+     * deliberately throttled so a sustained machine-gun burst remains readable.
+     */
+    private void traceProneGunHit(EntityHurtByGunEvent.Pre event, boolean canceled) {
+        if (!(event.getAttacker() instanceof EntityNPCInterface shooter)
+                || !NpcCrawlState.isCrawling(shooter) || event.getLogicalSide().isClient()) return;
+        Integer previousTick = lastProneHitTraceTick.get(shooter);
+        if (previousTick != null && shooter.tickCount - previousTick < 5) return;
+        lastProneHitTraceTick.put(shooter, shooter.tickCount);
+        Entity target = event.getHurtEntity();
+        Entity bullet = event.getBullet();
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[TACZ-PRONE-HIT-TRACE] npcId={} tick={} gun={} targetId={} targetClass={} amount={} " +
+                        "baseAmount={} headshot={} targetHealth={} taczCrawl={} nativeCrawl={} canceledByFaction={} " +
+                        "bulletId={} bulletPos={} targetPos={}",
+                shooter.getId(), shooter.tickCount, event.getGunId(), target == null ? -1 : target.getId(),
+                target == null ? "null" : target.getClass().getName(), decimal(event.getAmount()),
+                decimal(event.getBaseAmount()), event.isHeadShot(),
+                target instanceof LivingEntity living ? decimal(living.getHealth()) : "n/a",
+                IGunOperator.fromLivingEntity(shooter).getDataHolder().isCrawling,
+                NpcCrawlState.isCrawling(shooter), canceled, bullet == null ? -1 : bullet.getId(),
+                bullet == null ? "null" : vector(bullet.position()),
+                target == null ? "null" : vector(target.position()));
     }
 
     @SubscribeEvent
