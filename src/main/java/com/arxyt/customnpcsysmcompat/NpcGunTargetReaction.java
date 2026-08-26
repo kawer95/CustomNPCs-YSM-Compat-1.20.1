@@ -36,12 +36,21 @@ public final class NpcGunTargetReaction {
     }
 
     /**
-     * Starts or continues the reaction window when a dead target is replaced.
-     * A live target replacement is considered an intentional new order and is
-     * never delayed.
+     * Starts or continues the reaction window when an automatically acquired
+     * replacement follows a dead target.
+     *
+     * <p>An explicit Dominion attack order is fundamentally different from automatic
+     * target acquisition: the commander has already selected the target, so keeping a
+     * previous post-kill reaction window would make a direct order feel unresponsive.
+     * Such an order clears stale state and is allowed to begin TaCZ's normal draw/ADS
+     * sequence immediately.</p>
      */
     public static boolean blocks(EntityNPCInterface npc, LivingEntity candidate,
-                                 DominionCombatBalance.Settings settings) {
+                                 DominionCombatBalance.Settings settings, boolean explicitAttackOrder) {
+        if (bypassesReactionWindow(explicitAttackOrder)) {
+            clear(npc);
+            return false;
+        }
         if (npc == null || candidate == null || !candidate.isAlive()
                 || settings == null || !settings.available() || !settings.targetReactionEnabled()) {
             clear(npc);
@@ -111,6 +120,11 @@ public final class NpcGunTargetReaction {
         double safeAngle = Double.isFinite(angleDegrees) ? Mth.clamp(angleDegrees, 0.0D, 180.0D) : 0.0D;
         return MIN_DYNAMIC_REACTION_TICKS + (int) Math.round(safeAngle / 180.0D
                 * (MAX_DYNAMIC_REACTION_TICKS - MIN_DYNAMIC_REACTION_TICKS));
+    }
+
+    /** Explicit commander target selection must not inherit an automatic target-switch delay. */
+    static boolean bypassesReactionWindow(boolean explicitAttackOrder) {
+        return explicitAttackOrder;
     }
 
     private static void clearReactionWindow(CompoundTag data) {

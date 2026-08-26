@@ -3,6 +3,8 @@ package com.arxyt.customnpcsysmcompat;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class NpcGunTargetReactionTest {
     @Test
@@ -18,5 +20,11 @@ final class NpcGunTargetReactionTest {
         assertEquals(40, NpcGunTargetReaction.reactionDuration(true, 180.0D));
         assertEquals(10, NpcGunTargetReaction.reactionDuration(true, -20.0D));
         assertEquals(40, NpcGunTargetReaction.reactionDuration(true, 999.0D));
+    }
+
+    @Test
+    void explicitDominionTargetBypassesAutomaticTargetReaction() {
+        assertTrue(NpcGunTargetReaction.bypassesReactionWindow(true));
+        assertFalse(NpcGunTargetReaction.bypassesReactionWindow(false));
     }
 }

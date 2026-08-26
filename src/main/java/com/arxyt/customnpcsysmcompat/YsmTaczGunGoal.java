@@ -89,7 +89,7 @@ public final class YsmTaczGunGoal extends Goal {
         }
         if (command.commandedAttack() && npc.getTarget() != target) npc.setTarget(target);
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
-        if (NpcGunTargetReaction.blocks(npc, target, settings)) {
+        if (NpcGunTargetReaction.blocks(npc, target, settings, command.commandedAttack())) {
             npc.getNavigation().stop();
             npc.getMoveControl().strafe(0.0F, 0.0F);
             try {
