@@ -59,15 +59,17 @@ public final class DominionYsmNpcAdapter implements DominionUnitAdapter {
         if (!(entity instanceof EntityNPCInterface npc)) return false;
         npc.setTarget(null);
         NpcGunTargetReaction.clear(npc);
-        stopGun(npc);
+        // Dominion clears its persistent queue after adapter callbacks. Force the TaCZ adapter
+        // to leave ADS now instead of treating that brief same-tick queue as a target hand-off.
+        stopGun(npc, true);
         return true;
     }
 
-    private static void stopGun(EntityNPCInterface npc) {
+    private static void stopGun(EntityNPCInterface npc, boolean forceExitAim) {
         GunCompatFacade facade = GunCompat.facade();
         if (facade == null) return;
         try {
-            facade.stop(npc);
+            facade.stop(npc, forceExitAim);
         } catch (Throwable error) {
             GunCompat.reportRuntimeError(error);
         }

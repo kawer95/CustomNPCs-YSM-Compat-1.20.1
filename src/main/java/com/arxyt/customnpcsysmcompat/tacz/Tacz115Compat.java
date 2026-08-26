@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.tacz;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
+import com.arxyt.customnpcsysmcompat.DominionCommandBridge;
 import com.arxyt.customnpcsysmcompat.GunCompatFacade;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
@@ -120,8 +121,14 @@ public final class Tacz115Compat implements GunCompatFacade {
 
     @Override
     public void stop(EntityNPCInterface shooter) {
+        stop(shooter, false);
+    }
+
+    @Override
+    public void stop(EntityNPCInterface shooter, boolean forceExitAim) {
         IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
-        if (operator.getSynIsAiming()) operator.aim(false);
+        boolean queuedAttack = DominionCommandBridge.hasQueuedAttack(shooter);
+        if (shouldExitAim(operator.getSynIsAiming(), queuedAttack, forceExitAim)) operator.aim(false);
         // Goal arbitration and small range changes are transient for CustomNPCs. Cancelling
         // here repeatedly aborted TaCZ's reload state machine after the first magazine.
     }
@@ -197,6 +204,11 @@ public final class Tacz115Compat implements GunCompatFacade {
     /** Every active NPC gun engagement uses TaCZ ADS until its combat goal stops. */
     static boolean needsAimForTarget(boolean isAiming) {
         return !isAiming;
+    }
+
+    /** Keeps ADS only while Dominion's non-empty attack queue transfers this NPC to another target. */
+    static boolean shouldExitAim(boolean isAiming, boolean queuedAttack, boolean forceExitAim) {
+        return isAiming && (forceExitAim || !queuedAttack);
     }
 
     private void traceResult(EntityNPCInterface shooter, ItemStack gunStack, IGun gun,

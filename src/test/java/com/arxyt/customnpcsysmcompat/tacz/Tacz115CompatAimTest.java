@@ -34,4 +34,12 @@ final class Tacz115CompatAimTest {
         assertTrue(Tacz115Compat.needsAimForTarget(false));
         assertFalse(Tacz115Compat.needsAimForTarget(true));
     }
+
+    @Test
+    void queuedDominionAttackKeepsAdsButAnExplicitClearAlwaysReleasesIt() {
+        assertFalse(Tacz115Compat.shouldExitAim(true, true, false));
+        assertTrue(Tacz115Compat.shouldExitAim(true, false, false));
+        assertTrue(Tacz115Compat.shouldExitAim(true, true, true));
+        assertFalse(Tacz115Compat.shouldExitAim(false, true, true));
+    }
 }
