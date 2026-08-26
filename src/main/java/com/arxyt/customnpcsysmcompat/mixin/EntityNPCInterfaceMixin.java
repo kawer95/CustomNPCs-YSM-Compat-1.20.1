@@ -3,6 +3,7 @@ package com.arxyt.customnpcsysmcompat.mixin;
 import com.arxyt.customnpcsysmcompat.YsmTaczGunGoal;
 import com.arxyt.customnpcsysmcompat.YsmTaczProneGunGoal;
 import com.arxyt.customnpcsysmcompat.YsmTaczSentryGunGoal;
+import com.arxyt.customnpcsysmcompat.NpcGunAimLock;
 import com.arxyt.customnpcsysmcompat.animation.DelayedMeleeAttack;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import net.minecraft.world.entity.Entity;
@@ -33,6 +34,18 @@ public abstract class EntityNPCInterfaceMixin extends PathfinderMob {
             // The normal gun goal owns MOVE and is intentionally disabled by Dominion's
             // HOLD policy. This LOOK-only goal can keep firing without reopening movement.
             goalSelector.addGoal(0, new YsmTaczSentryGunGoal((EntityNPCInterface) (Object) this));
+        }
+    }
+
+    /**
+     * EntityNPCInterface's runtime tick name in the shipped CustomNPCs 1.20.1 jar.
+     * This runs after PathfinderMob has allowed body/head controllers to process, so the
+     * commanded aim direction is the one replicated to observing clients.
+     */
+    @Inject(method = "m_8119_", at = @At("TAIL"), remap = false, require = 0)
+    private void customnpcsYsmCompat$maintainCommandGunAim(CallbackInfo ci) {
+        if (!level().isClientSide) {
+            NpcGunAimLock.maintain((EntityNPCInterface) (Object) this);
         }
     }
 

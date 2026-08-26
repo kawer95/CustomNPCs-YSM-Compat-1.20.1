@@ -101,6 +101,7 @@ public final class YsmTaczGunGoal extends Goal {
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
+        if (command.commandedAttack()) NpcGunAimLock.track(npc, target);
         double distance = npc.distanceTo(target);
         double desired = effectiveRange();
         boolean canSee = npc.getSensing().hasLineOfSight(target);

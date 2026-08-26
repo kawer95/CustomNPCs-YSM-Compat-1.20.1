@@ -64,6 +64,7 @@ public final class YsmTaczProneGunGoal extends Goal {
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
+        NpcGunAimLock.track(npc, target);
         npc.setYRot(Mth.rotateIfNecessary(npc.getYRot(), npc.yHeadRot, 30.0F));
 
         boolean canSee = npc.getSensing().hasLineOfSight(target);
