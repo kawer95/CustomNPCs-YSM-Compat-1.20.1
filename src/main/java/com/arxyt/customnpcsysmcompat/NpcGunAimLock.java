@@ -33,7 +33,7 @@ public final class NpcGunAimLock {
         // This is deliberately the CustomNPCs-native forced look state, not just a
         // one-tick LookControl request. EntityAILook then stops restoring DataAI.orientation
         // between shots, which makes the target-facing body direction authoritative.
-        npc.lookAi.rotate(target);
+        if (npc.lookAi != null) npc.lookAi.rotate(target);
         LAST_COMMAND_AIM.put(npc, new AimState(target, yaw));
         apply(npc, yaw);
     }
@@ -62,7 +62,7 @@ public final class NpcGunAimLock {
         if (DominionCommandBridge.hasQueuedAttack(npc)) {
             AimState aim = LAST_COMMAND_AIM.get(npc);
             if (aim != null) {
-                npc.lookAi.rotate(aim.target());
+                if (npc.lookAi != null) npc.lookAi.rotate(aim.target());
                 apply(npc, aim.yaw());
             }
             return;
@@ -74,11 +74,15 @@ public final class NpcGunAimLock {
         if (npc != null && LAST_COMMAND_AIM.remove(npc) != null) {
             // Release only a forced state this compatibility layer created. The NPC's normal
             // look task can then resume naturally once the Dominion gun command has ended.
-            npc.lookAi.stop();
+            if (npc.lookAi != null) npc.lookAi.stop();
         }
     }
 
-    /** Matches the direct lock used for Dominion's retreating gun maids. */
+    /**
+     * Matches the direct lock used for Dominion's retreating gun maids. The historical
+     * fields are updated as well, so a newly initialized CNPC does not interpolate back to
+     * its configured idle facing while its optional look AI is still null.
+     */
     private static void apply(EntityNPCInterface npc, float yaw) {
         npc.setYRot(yaw);
         npc.yRotO = yaw;
