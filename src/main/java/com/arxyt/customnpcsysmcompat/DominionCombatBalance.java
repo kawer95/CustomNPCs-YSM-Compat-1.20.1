@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
- * Reads Dominion Sword's shared commander-gun balance settings without making
+ * Reads Dominion Sword's shared TaCZ target-reaction settings without making
  * the base compatibility mod link against Dominion Sword at runtime.
  *
  * <p>The bridge is deliberately read-only. If the optional mod or an expected
@@ -27,8 +27,7 @@ public final class DominionCombatBalance {
             Class<?> config = Class.forName("com.arxyt.dominionsword.config.ServerConfig", true, loader);
             access = new Access(
                     config.getField("BALANCE_MAID_TARGET_ACQUISITION"),
-                    config.getField("DYNAMIC_MAID_TARGET_ACQUISITION"),
-                    config.getField("MAID_TACZ_ACCURACY"));
+                    config.getField("DYNAMIC_MAID_TARGET_ACQUISITION"));
             CustomNpcsYsmCompat.LOGGER.info("Dominion Sword TaCZ balance enabled for YSM-CNPCs");
         } catch (ReflectiveOperationException | LinkageError error) {
             access = null;
@@ -43,8 +42,7 @@ public final class DominionCombatBalance {
         try {
             boolean balanceTargetAcquisition = booleanValue(current.balanceTargetAcquisition());
             boolean dynamicTargetAcquisition = booleanValue(current.dynamicTargetAcquisition());
-            int taczAccuracy = clampAccuracy(numberValue(current.taczAccuracy()));
-            return new Settings(true, balanceTargetAcquisition, dynamicTargetAcquisition, taczAccuracy);
+            return new Settings(true, balanceTargetAcquisition, dynamicTargetAcquisition);
         } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
             access = null;
             report(error);
@@ -52,21 +50,10 @@ public final class DominionCombatBalance {
         }
     }
 
-    static int clampAccuracy(Number value) {
-        if (value == null) return 0;
-        return Math.max(0, Math.min(100, value.intValue()));
-    }
-
     private static boolean booleanValue(Field field) throws ReflectiveOperationException {
         Object value = readConfigValue(field);
         if (value instanceof Boolean enabled) return enabled;
         throw new ReflectiveOperationException("Expected boolean from " + field.getName());
-    }
-
-    private static Number numberValue(Field field) throws ReflectiveOperationException {
-        Object value = readConfigValue(field);
-        if (value instanceof Number number) return number;
-        throw new ReflectiveOperationException("Expected number from " + field.getName());
     }
 
     private static Object readConfigValue(Field field) throws ReflectiveOperationException {
@@ -84,17 +71,12 @@ public final class DominionCombatBalance {
         }
     }
 
-    /** Immutable copy of the three global commander-gun configuration values. */
+    /** Immutable copy of the two shared target-reaction configuration values. */
     public record Settings(boolean available, boolean targetReactionEnabled,
-                           boolean dynamicTargetReaction, int taczAccuracy) {
-        static final Settings UNAVAILABLE = new Settings(false, false, false, 100);
-
-        public Settings {
-            taczAccuracy = Math.max(0, Math.min(100, taczAccuracy));
-        }
+                           boolean dynamicTargetReaction) {
+        static final Settings UNAVAILABLE = new Settings(false, false, false);
     }
 
-    private record Access(Field balanceTargetAcquisition, Field dynamicTargetAcquisition,
-                          Field taczAccuracy) {
+    private record Access(Field balanceTargetAcquisition, Field dynamicTargetAcquisition) {
     }
 }

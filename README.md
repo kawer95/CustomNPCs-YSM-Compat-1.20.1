@@ -12,7 +12,7 @@ TaCZ `1.1.5` is optional. When installed, YSM-enabled CustomNPCs holding a TaCZ 
 
 Dominion Sword `1.31.0+` is optional. Under Dominion control, a YSM CustomNPC keeps its configured CustomNPC ranged distance while Dominion owns target selection and gun maneuvering: it pursues until it has line of sight, fires while retreating inside 10 blocks, suppresses random strafing, honors breach/CQB mode, and does not complete a delayed melee hit against a superseded command target.
 
-When Dominion Sword is installed, its existing server configuration entries `balanceMaidTargetAcquisition`, `dynamicMaidTargetAcquisition`, and `maidTaczAccuracy` apply to every TaCZ-equipped Touhou Little Maid and YSM-enabled CustomNPC, whether or not the entity is currently under Dominion control. They respectively add a 20-tick fixed or 10–40-tick angle-based delay after a kill before changing targets, and configure the aim-solution hit rate. TaCZ's own spread remains active. No duplicate CustomNPC setting is created, and uninstalling Dominion Sword leaves normal YSM-NPC gun behavior unchanged.
+When Dominion Sword is installed, its existing target-reaction settings `balanceMaidTargetAcquisition` and `dynamicMaidTargetAcquisition` apply to every TaCZ-equipped Touhou Little Maid and YSM-enabled CustomNPC, whether or not the entity is currently under Dominion control. They add a 20-tick fixed or 10–40-tick angle-based delay after a kill before changing targets. `maidTaczAccuracy` remains a maid-only setting: each YSM-enabled CustomNPC instead uses its own CustomNPC **Ranged Accuracy** value as the chance that a shot receives an exact target-centre aim solution. TaCZ's own spread remains active. No duplicate CustomNPC setting is created, and uninstalling Dominion Sword leaves normal YSM-NPC gun behavior unchanged.
 
 Both client and server must install the compatibility mod. Every client must install the same YSM model packs; model files are not sent over the network.
 
@@ -20,7 +20,7 @@ Open a CustomNPC's model editor and select **YSM Model**. The page supports sear
 
 For the local player, the same formal `config_forms` choices made through YSM's **Z** menu are also retained automatically. They are stored per player UUID and per model in `config/customnpcs_ysm_compat_player_tweaks.json`, then restored after the YSM player model is ready. The file contains only form IDs and selected values—never raw Molang. Values that YSM normally synchronizes are sent using YSM's own packet; its intentionally local-only `v.roaming.*` values remain local.
 
-Version 0.4.2 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. With TaCZ present, the real NPC owns the gun state while the proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations. Melee synchronization diagnostics use the `YSM-ATTACK-TRACE` log prefix.
+Version 0.4.3 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. With TaCZ present, the real NPC owns the gun state while the proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations. Melee synchronization diagnostics use the `YSM-ATTACK-TRACE` log prefix.
 
 The projectile slot and eight drop slots form the NPC's TaCZ ammunition inventory. Normal ammunition, ammo boxes and infinite ammo boxes are handled by TaCZ. Gun timing comes from the gun pack; CustomNPC ranged damage, projectile speed and burst timing do not override it. Server distance defaults are 64 blocks for sniper rifles, 48 for rifles and other weapons, and 32 for pistols, shotguns and SMGs.
 
@@ -32,4 +32,4 @@ The two required mod jars are resolved from `../原型模组` by `build.gradle`.
 .\gradlew.bat clean test build -Pdominionsword_jar=../DominionSword-1.20.1/build/libs/dominionsword-1.32.6.jar
 ```
 
-The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.2.jar`.
+The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.3.jar`.

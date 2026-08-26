@@ -1,7 +1,6 @@
 package com.arxyt.customnpcsysmcompat.tacz;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
-import com.arxyt.customnpcsysmcompat.DominionCombatBalance;
 import com.arxyt.customnpcsysmcompat.GunCompatFacade;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
@@ -105,7 +104,7 @@ public final class Tacz115Compat implements GunCompatFacade {
         double z = target.getZ() - shooter.getZ();
         float yaw = (float) -Math.toDegrees(Math.atan2(x, z));
         float pitch = (float) -Math.toDegrees(Math.atan2(y, Math.sqrt(x * x + z * z)));
-        float adjustedYaw = yaw + dominionAimError(shooter, target, x, z);
+        float adjustedYaw = yaw + npcAimError(shooter, target, x, z);
         ShootResult result = operator.shoot(() -> pitch, () -> adjustedYaw);
         traceResult(shooter, gunStack, gun, operator, result);
 
@@ -178,24 +177,32 @@ public final class Tacz115Compat implements GunCompatFacade {
         return 2;
     }
 
-    /** Applies Dominion's shared TaCZ accuracy setting without changing TaCZ weapon spread. */
-    private static float dominionAimError(EntityNPCInterface shooter, LivingEntity target, double x, double z) {
-        DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
-        if (!settings.available()) return 0.0F;
-        return aimErrorDegrees(settings.taczAccuracy(), target.getBbWidth(), Math.sqrt(x * x + z * z),
+    /**
+     * Applies CustomNPCs' own ranged accuracy as an exact-aim probability.
+     * Accurate shots receive the target-centre yaw, while the remaining shots
+     * deliberately aim outside the target. TaCZ weapon spread remains active
+     * for both paths and is intentionally not counted as CustomNPC accuracy.
+     */
+    private static float npcAimError(EntityNPCInterface shooter, LivingEntity target, double x, double z) {
+        return aimErrorDegrees(shooter.stats.ranged.getAccuracy(), target.getBbWidth(), Math.sqrt(x * x + z * z),
                 shooter.getRandom().nextInt(100), shooter.getRandom().nextDouble(), shooter.getRandom().nextBoolean());
     }
 
+    /** Returns zero for a precise target lock; nonzero values intentionally miss the target silhouette. */
     static float aimErrorDegrees(int accuracy, double targetWidth, double horizontalDistance,
                                  int accuracyRoll, double magnitudeRoll, boolean positive) {
-        int safeAccuracy = Math.max(0, Math.min(100, accuracy));
-        if (Math.floorMod(accuracyRoll, 100) < safeAccuracy) return 0.0F;
+        if (isExactAimShot(accuracy, accuracyRoll)) return 0.0F;
         double safeDistance = Math.max(0.1D, horizontalDistance);
         double safeWidth = Math.max(0.35D, targetWidth * 0.65D);
         double randomMagnitude = Double.isFinite(magnitudeRoll) ? Mth.clamp(magnitudeRoll, 0.0D, 1.0D) : 0.0D;
         float error = (float) (Math.toDegrees(Math.atan2(safeWidth, safeDistance)) + 2.0D
                 + randomMagnitude * 3.0D);
         return positive ? error : -error;
+    }
+
+    static boolean isExactAimShot(int accuracy, int accuracyRoll) {
+        int safeAccuracy = Math.max(0, Math.min(100, accuracy));
+        return Math.floorMod(accuracyRoll, 100) < safeAccuracy;
     }
 
     private void traceResult(EntityNPCInterface shooter, ItemStack gunStack, IGun gun,
