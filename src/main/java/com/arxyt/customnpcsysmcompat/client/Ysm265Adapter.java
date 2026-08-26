@@ -1,6 +1,9 @@
 package com.arxyt.customnpcsysmcompat.client;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
+import com.arxyt.customnpcsysmcompat.data.YsmTweakEntry;
+import com.arxyt.customnpcsysmcompat.data.YsmTweakKind;
+import com.arxyt.customnpcsysmcompat.data.YsmTweakProfile;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.RemotePlayer;
@@ -11,15 +14,20 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.capabilities.Capability;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Collection;
+import java.util.function.Consumer;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 import net.minecraft.world.phys.Vec3;
@@ -31,8 +39,15 @@ public final class Ysm265Adapter {
     private static final String PLAYER_ANIMATABLE = "com.elfmcys.yesstevemodel.o0OOO0o0o0OOo000oO00o00O";
     private static final String PLAYER_SYNC_DATA = "com.elfmcys.yesstevemodel.ooOO000o0O0OOOoO0Oo0o0Oo";
     private static final String YSM_RENDER_TYPE = "com.elfmcys.yesstevemodel.o0oOo0ooO00oOoooOOOoOOo0";
+    private static final String CONFIG_FORM = "com.elfmcys.yesstevemodel.O000OO0OoOoo0ooO0o000000";
+    private static final String RANGE_FORM = "com.elfmcys.yesstevemodel.oOooooooo00OO0OOO0oO00o0";
+    private static final String RADIO_FORM = "com.elfmcys.yesstevemodel.oO0oOOoO0ooo0O0OO0oo0oo0";
+    private static final String ANIMATABLE_BASE = "com.elfmcys.yesstevemodel.o0000OoOooO0oo0o0oooo0Oo";
+    private static final String EXPRESSION_PARSER = "com.elfmcys.yesstevemodel.O00o0ooOoo00o00o0OOOO0o0";
+    private static final String PARSED_EXPRESSION = "com.elfmcys.yesstevemodel.O0o0OOO00000oO00O00oOOo0";
     private static final String OBF = "Oo0Oo0o00O00Oo0OOoOOoooo";
     private static final AtomicBoolean ERROR_REPORTED = new AtomicBoolean();
+    private static final Set<String> TWEAK_WARNINGS = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private static volatile Bindings bindings;
 
@@ -69,6 +84,80 @@ public final class Ysm265Adapter {
         }
     }
 
+    /** Returns the formal model configuration forms shown by YSM's animation roulette. */
+    public static List<YsmTweakGroup> tweakGroups(String modelId) {
+        if (modelId == null || modelId.isBlank()) return List.of();
+        try {
+            return tweakConfig(modelId, bindings()).groups();
+        } catch (Throwable error) {
+            report(error);
+            return List.of();
+        }
+    }
+
+    /**
+     * Replays stored choices against this proxy's local YSM animatable.  The stored data
+     * contains only selections; radio expressions remain in the locally installed model.
+     */
+    public static TweakApplyResult applyPlayerTweaks(RemotePlayer player, String modelId,
+                                                      YsmTweakProfile profile) {
+        if (profile == null || profile.isEmpty() || modelId == null || modelId.isBlank()) {
+            return TweakApplyResult.NONE;
+        }
+        try {
+            Bindings b = bindings();
+            Optional<Object> animatable = playerAnimatable(player, b);
+            if (animatable.isEmpty()) return TweakApplyResult.NONE;
+            ModelTweakConfig config = tweakConfig(modelId, b);
+            int applied = 0;
+            int skipped = 0;
+            for (YsmTweakEntry entry : profile.entries()) {
+                LoadedTweakForm form = config.forms().get(entry.identity());
+                if (form == null) {
+                    tweakWarning(modelId, entry, "form no longer exists");
+                    skipped++;
+                    continue;
+                }
+                if (form.form().kind() != entry.kind()
+                        || !form.form().variable().equals(entry.variable())) {
+                    tweakWarning(modelId, entry, "form type or variable changed");
+                    skipped++;
+                    continue;
+                }
+                String expression = expressionFor(entry, form, modelId);
+                if (expression == null) {
+                    skipped++;
+                    continue;
+                }
+                try {
+                    Object parsed = b.parseExpression.invoke(null, expression);
+                    b.applyExpression.invoke(animatable.get(), parsed, true, false, null);
+                    applied++;
+                } catch (Throwable error) {
+                    tweakWarning(modelId, entry, "expression rejected: " + error.getClass().getSimpleName());
+                    skipped++;
+                }
+            }
+            return new TweakApplyResult(applied, skipped);
+        } catch (Throwable error) {
+            report(error);
+            return TweakApplyResult.NONE;
+        }
+    }
+
+    /** Normalizes a range value exactly as the NPC page does before it enters YSM. */
+    public static double normalizeRange(YsmTweakForm.Range form, double value) {
+        if (form == null || !Double.isFinite(value)) return 0.0D;
+        double min = Math.min(form.min(), form.max());
+        double max = Math.max(form.min(), form.max());
+        double normalized = Math.max(min, Math.min(max, value));
+        if (Double.isFinite(form.step()) && form.step() > 0.0D) {
+            normalized = min + Math.round((normalized - min) / form.step()) * form.step();
+            normalized = Math.max(min, Math.min(max, normalized));
+        }
+        return normalized;
+    }
+
     public static boolean setPlayerModel(RemotePlayer player, String modelId) {
         try {
             Bindings b = bindings();
@@ -81,6 +170,108 @@ public final class Ysm265Adapter {
         } catch (Throwable error) {
             report(error);
             return false;
+        }
+    }
+
+    private static String expressionFor(YsmTweakEntry entry, LoadedTweakForm loaded, String modelId) {
+        YsmTweakForm form = loaded.form();
+        return switch (entry.kind()) {
+            case CHECKBOX -> form.variable() + '=' + (entry.booleanValue() ? '1' : '0');
+            case RANGE -> {
+                double value = normalizeRange((YsmTweakForm.Range) form, entry.numberValue());
+                yield form.variable() + '=' + Double.toString(value);
+            }
+            case RADIO -> {
+                String expression = loaded.radioExpressions().get(entry.choice());
+                if (expression == null || expression.isBlank()) {
+                    tweakWarning(modelId, entry, "radio choice no longer exists");
+                    yield null;
+                }
+                yield expression;
+            }
+        };
+    }
+
+    private static ModelTweakConfig tweakConfig(String modelId, Bindings b) throws ReflectiveOperationException {
+        Map<?, ?> registry = (Map<?, ?>) b.modelRegistry.invoke(null);
+        Object resource = registry.get(modelId);
+        if (resource == null) return ModelTweakConfig.EMPTY;
+        Object metadata = resource.getClass().getMethod("Ooooo0oooO0oooOOOoO0000O").invoke(resource);
+        Object properties = metadata.getClass().getMethod("o0OOooo0o0OO00OoOOOo0o0O").invoke(metadata);
+        Object rawButtons = properties.getClass().getMethod("Ooooo0oooO0oooOOOoO0000O").invoke(properties);
+        if (!(rawButtons instanceof Map<?, ?> buttons)) return ModelTweakConfig.EMPTY;
+
+        List<YsmTweakGroup> groups = new ArrayList<>();
+        Map<String, LoadedTweakForm> forms = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> mapEntry : buttons.entrySet()) {
+            Object button = mapEntry.getValue();
+            if (button == null) continue;
+            String buttonId = stringValue(mapEntry.getKey());
+            String title = stringValue(button.getClass().getMethod("o0OOooo0o0OO00OoOOOo0o0O").invoke(button));
+            String description = stringValue(button.getClass().getMethod("O00OOOooOoooOoo0o0o0oO0O").invoke(button));
+            Object rawForms = button.getClass().getMethod("oOOOo0OOO0ooooo0O00OO0o0").invoke(button);
+            if (rawForms == null || !rawForms.getClass().isArray()) continue;
+
+            List<YsmTweakForm> groupForms = new ArrayList<>();
+            int length = Array.getLength(rawForms);
+            for (int index = 0; index < length; index++) {
+                Object rawForm = Array.get(rawForms, index);
+                LoadedTweakForm loaded = readForm(buttonId, index, rawForm, b);
+                if (loaded == null) continue;
+                groupForms.add(loaded.form());
+                forms.put(buttonId + '#' + index, loaded);
+            }
+            if (!groupForms.isEmpty()) {
+                groups.add(new YsmTweakGroup(buttonId, title.isBlank() ? buttonId : title, description, groupForms));
+            }
+        }
+        return new ModelTweakConfig(List.copyOf(groups), Map.copyOf(forms));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static LoadedTweakForm readForm(String buttonId, int index, Object rawForm, Bindings b)
+            throws ReflectiveOperationException {
+        if (rawForm == null || !b.configForm.isInstance(rawForm)) return null;
+        String type = stringValue(b.formType.invoke(rawForm));
+        String title = stringValue(b.formTitle.invoke(rawForm));
+        String description = stringValue(b.formDescription.invoke(rawForm));
+        String variable = stringValue(b.formVariable.invoke(rawForm));
+        return switch (type) {
+            case "checkbox" -> new LoadedTweakForm(
+                    new YsmTweakForm.Checkbox(index, title, description, variable), Map.of());
+            case "range" -> {
+                if (!b.rangeForm.isInstance(rawForm)) yield null;
+                yield new LoadedTweakForm(new YsmTweakForm.Range(index, title, description, variable,
+                        ((Number) b.rangeStep.invoke(rawForm)).doubleValue(),
+                        ((Number) b.rangeMin.invoke(rawForm)).doubleValue(),
+                        ((Number) b.rangeMax.invoke(rawForm)).doubleValue()), Map.of());
+            }
+            case "radio" -> {
+                if (!b.radioForm.isInstance(rawForm)) yield null;
+                Object rawLabels = b.radioLabels.invoke(rawForm);
+                if (!(rawLabels instanceof Map<?, ?> labels)) yield null;
+                Map<String, String> expressions = new LinkedHashMap<>();
+                for (Map.Entry<?, ?> label : labels.entrySet()) {
+                    String choice = stringValue(label.getKey());
+                    String expression = stringValue(label.getValue());
+                    if (!choice.isBlank() && !expression.isBlank()) expressions.put(choice, expression);
+                }
+                yield new LoadedTweakForm(new YsmTweakForm.Radio(index, title, description, variable,
+                        List.copyOf(expressions.keySet())), Map.copyOf(expressions));
+            }
+            default -> null;
+        };
+    }
+
+    private static String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private static void tweakWarning(String modelId, YsmTweakEntry entry, String message) {
+        String key = modelId + '|' + entry.identity() + '|' + message;
+        if (TWEAK_WARNINGS.add(key)) {
+            CustomNpcsYsmCompat.LOGGER.warn("Skipping saved YSM tweak for model {} form {}: {}",
+                    modelId, entry.identity(), message);
         }
     }
 
@@ -232,8 +423,25 @@ public final class Ysm265Adapter {
                 foodLevel.setAccessible(true);
                 Method customRenderType = Class.forName(YSM_RENDER_TYPE)
                         .getMethod(OBF, ResourceLocation.class);
+                Class<?> configForm = Class.forName(CONFIG_FORM);
+                Class<?> rangeForm = Class.forName(RANGE_FORM);
+                Class<?> radioForm = Class.forName(RADIO_FORM);
+                Method formType = configForm.getMethod(OBF);
+                Method formTitle = configForm.getMethod("o0OOooo0o0OO00OoOOOo0o0O");
+                Method formDescription = configForm.getMethod("O00OOOooOoooOoo0o0o0oO0O");
+                Method formVariable = configForm.getMethod("oOOOo0OOO0ooooo0O00OO0o0");
+                Method rangeStep = rangeForm.getMethod("OOOOo0O0oO0OOo0O0O0Oo0O0");
+                Method rangeMin = rangeForm.getMethod("Ooooo0oooO0oooOOOoO0000O");
+                Method rangeMax = rangeForm.getMethod("oo0OoO00oOoo000O0000o0oo");
+                Method radioLabels = radioForm.getMethod("OOOOo0O0oO0OOo0O0O0Oo0O0");
+                Class<?> expression = Class.forName(PARSED_EXPRESSION);
+                Method parseExpression = Class.forName(EXPRESSION_PARSER).getMethod(OBF, String.class);
+                Method applyExpression = Class.forName(ANIMATABLE_BASE)
+                        .getMethod(OBF, expression, boolean.class, boolean.class, Consumer.class);
                 bindings = new Bindings(modelRegistry, capability, setModel, isValid,
-                        getPlayerSyncData, advancePlayerAnimation, foodLevel, customRenderType);
+                        getPlayerSyncData, advancePlayerAnimation, foodLevel, customRenderType,
+                        configForm, rangeForm, radioForm, formType, formTitle, formDescription, formVariable,
+                        rangeStep, rangeMin, rangeMax, radioLabels, parseExpression, applyExpression);
             }
             return bindings;
         }
@@ -259,6 +467,26 @@ public final class Ysm265Adapter {
     private record Bindings(Method modelRegistry, Capability<?> playerCapability,
                             Method setPlayerModel, Method isPlayerModelValid,
                             Method getPlayerSyncData, Method advancePlayerAnimation,
-                            Field foodLevel, Method customRenderType) {
+                            Field foodLevel, Method customRenderType,
+                            Class<?> configForm, Class<?> rangeForm, Class<?> radioForm,
+                            Method formType, Method formTitle, Method formDescription, Method formVariable,
+                            Method rangeStep, Method rangeMin, Method rangeMax, Method radioLabels,
+                            Method parseExpression, Method applyExpression) {
+    }
+
+    /** Called after resource reload/world replacement so stale model warnings may be reported again. */
+    public static void clearTweakDiagnostics() {
+        TWEAK_WARNINGS.clear();
+    }
+
+    public record TweakApplyResult(int applied, int skipped) {
+        public static final TweakApplyResult NONE = new TweakApplyResult(0, 0);
+    }
+
+    private record LoadedTweakForm(YsmTweakForm form, Map<String, String> radioExpressions) {
+    }
+
+    private record ModelTweakConfig(List<YsmTweakGroup> groups, Map<String, LoadedTweakForm> forms) {
+        private static final ModelTweakConfig EMPTY = new ModelTweakConfig(List.of(), Map.of());
     }
 }

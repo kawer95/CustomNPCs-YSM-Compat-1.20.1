@@ -7,5 +7,16 @@
   "gui.customnpcs_ysm_compat.restore": "Restore vanilla",
   "gui.customnpcs_ysm_compat.enabled": "Enable YSM model",
   "gui.customnpcs_ysm_compat.missing": "The selected model is missing on this client",
-  "gui.customnpcs_ysm_compat.empty": "No matching YSM models"
+  "gui.customnpcs_ysm_compat.empty": "No matching YSM models",
+  "gui.customnpcs_ysm_compat.tweaks.open": "Model tweaks...",
+  "gui.customnpcs_ysm_compat.tweaks.title": "YSM model tweaks",
+  "gui.customnpcs_ysm_compat.tweaks.done": "Done",
+  "gui.customnpcs_ysm_compat.tweaks.cancel": "Cancel page",
+  "gui.customnpcs_ysm_compat.tweaks.reset_model": "Reset model defaults",
+  "gui.customnpcs_ysm_compat.tweaks.clear_all": "Clear all configs",
+  "gui.customnpcs_ysm_compat.tweaks.default": "Default",
+  "gui.customnpcs_ysm_compat.tweaks.enabled": "Enabled",
+  "gui.customnpcs_ysm_compat.tweaks.disabled": "Disabled",
+  "gui.customnpcs_ysm_compat.tweaks.preview": "Static preview",
+  "gui.customnpcs_ysm_compat.tweaks.empty": "This model has no configurable entries"
 }

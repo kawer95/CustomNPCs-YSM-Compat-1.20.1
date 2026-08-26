@@ -12,6 +12,7 @@ import com.arxyt.customnpcsysmcompat.animation.NpcOrientationTracker;
 import com.arxyt.customnpcsysmcompat.animation.NpcHurtState;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
+import com.arxyt.customnpcsysmcompat.data.YsmTweakProfile;
 import com.arxyt.customnpcsysmcompat.mixin.EntitySharedFlagAccessor;
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -86,7 +87,8 @@ public final class AnimatedNpcRenderBridge {
             int animationTick = preview ? (int) (previewMillis / 50L) : npc.tickCount;
             sync(holder, npc, renderPartialTick, preview, animationTick);
             boolean hurtDiagnostic = !preview && updateHurtDiagnostic(holder, npc, renderPartialTick);
-            if (!selected.modelId().equals(holder.modelId)) {
+            boolean modelChanged = !selected.modelId().equals(holder.modelId);
+            if (modelChanged) {
                 if (!Ysm265Adapter.setPlayerModel(holder.player, selected.modelId())) {
                     return false;
                 }
@@ -95,6 +97,7 @@ public final class AnimatedNpcRenderBridge {
             } else if (!Ysm265Adapter.isPlayerModelReady(holder.player)) {
                 return false;
             }
+            applyTweaks(holder, selected, modelChanged);
 
             int size = npc.display.getSize();
             boolean partialVisibility = resolvedVisibility == Visibility.PARTIAL;
@@ -154,6 +157,27 @@ public final class AnimatedNpcRenderBridge {
                     holder.proxyHurtActive, capture.rawFloor(), capture.rawCeiling(),
                     holder.verticalAnchor.correction(), previous);
         }
+    }
+
+    /** Rebuilds only when a stored override was removed or changed, then replays it once. */
+    private static void applyTweaks(AnimatedProxy holder, YsmDisplayData selected, boolean modelChanged) {
+        YsmTweakProfile desired = selected.tweaksFor(selected.modelId());
+        boolean profileChanged = !desired.equals(holder.appliedTweaks);
+        if (!modelChanged && profileChanged && !holder.tweaksNeedReapply) {
+            // A form may have been reset to its default. Recreating the YSM model is the
+            // only reliable way to remove variables from its private runtime environment.
+            if (!Ysm265Adapter.setPlayerModel(holder.player, holder.modelId)) return;
+            holder.verticalAnchor.reset();
+        }
+        if (!modelChanged && !profileChanged && !holder.tweaksNeedReapply) return;
+
+        Ysm265Adapter.TweakApplyResult result = Ysm265Adapter.applyPlayerTweaks(
+                holder.player, holder.modelId, desired);
+        holder.appliedTweaks = desired;
+        holder.tweaksNeedReapply = false;
+        // YSM queues expressions for its normal capability tick. The proxy has no world
+        // lifecycle, so flush that queue once after a model/reload/configuration change.
+        if (result.applied() > 0) Ysm265Adapter.advancePlayerAnimation(holder.player);
     }
 
     private static AnimatedProxy proxyFor(EntityNPCInterface original, boolean preview) {
@@ -298,6 +322,7 @@ public final class AnimatedNpcRenderBridge {
             // already left `attacked`. Re-applying the same model here rebuilds only this
             // render proxy's animation state after the complete hurt action has played.
             boolean recovered = Ysm265Adapter.setPlayerModel(player, holder.modelId);
+            holder.tweaksNeedReapply = recovered;
             CustomNpcsYsmCompat.LOGGER.info(
                     "[YSM-HURT-RECOVERY] npcId={} tick={} model={} recovered={} hurtDuration={}",
                     npc.getId(), npc.tickCount, holder.modelId, recovered, player.hurtDuration);
@@ -523,6 +548,7 @@ public final class AnimatedNpcRenderBridge {
         PreviewOverrides.clearAll();
         MeleeAttackSync.clear();
         ProxyVisibilityContext.clearDebugState();
+        Ysm265Adapter.clearTweakDiagnostics();
     }
 
     public static boolean isProxyPlayer(Entity entity) {
@@ -550,6 +576,8 @@ public final class AnimatedNpcRenderBridge {
         private String lastProxyDebugState = "";
         private int ysmFoodLevel = -1;
         private String modelId = "";
+        private YsmTweakProfile appliedTweaks = YsmTweakProfile.EMPTY;
+        private boolean tweaksNeedReapply;
         private final Deque<String> hurtDiagnosticHistory = new ArrayDeque<>();
         private boolean hurtDiagnosticActive;
         private boolean proxyHurtActive;

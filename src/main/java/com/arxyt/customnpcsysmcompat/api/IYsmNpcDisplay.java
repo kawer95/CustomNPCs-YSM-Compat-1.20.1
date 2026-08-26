@@ -1,5 +1,9 @@
 package com.arxyt.customnpcsysmcompat.api;
 
+import com.arxyt.customnpcsysmcompat.data.YsmTweakProfile;
+
+import java.util.Map;
+
 public interface IYsmNpcDisplay {
     boolean customnpcsYsmCompat$isEnabled();
 
@@ -8,4 +12,8 @@ public interface IYsmNpcDisplay {
     String customnpcsYsmCompat$getModelId();
 
     void customnpcsYsmCompat$setModelId(String modelId);
+
+    Map<String, YsmTweakProfile> customnpcsYsmCompat$getTweakProfiles();
+
+    void customnpcsYsmCompat$setTweakProfiles(Map<String, YsmTweakProfile> profiles);
 }

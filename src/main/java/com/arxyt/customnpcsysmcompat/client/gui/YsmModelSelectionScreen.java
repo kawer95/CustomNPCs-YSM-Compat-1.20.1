@@ -18,6 +18,7 @@ import noppes.npcs.entity.EntityNPCInterface;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public final class YsmModelSelectionScreen extends Screen {
     private static final int ROW_HEIGHT = 18;
@@ -29,8 +30,10 @@ public final class YsmModelSelectionScreen extends Screen {
     private List<YsmModelEntry> filteredModels;
     private EditBox search;
     private Button enabledButton;
+    private Button tweaksButton;
     private String selectedId;
     private boolean enabled;
+    private Map<String, com.arxyt.customnpcsysmcompat.data.YsmTweakProfile> tweakProfiles;
     private int scrollOffset;
 
     public YsmModelSelectionScreen(GuiCreationEntities parent, EntityNPCInterface npc) {
@@ -40,6 +43,7 @@ public final class YsmModelSelectionScreen extends Screen {
         this.original = YsmDisplayAccess.get(npc.display);
         this.enabled = original.enabled();
         this.selectedId = original.modelId();
+        this.tweakProfiles = original.tweakProfiles();
         this.allModels = new ArrayList<>(Ysm265Adapter.models());
         this.filteredModels = new ArrayList<>(allModels);
     }
@@ -60,6 +64,9 @@ public final class YsmModelSelectionScreen extends Screen {
                 updatePreview();
             }
         }).bounds(listWidth + 12, 30, Math.max(150, width - listWidth - 24), 20).build());
+        tweaksButton = addRenderableWidget(Button.builder(Component.translatable("gui.customnpcs_ysm_compat.tweaks.open"),
+                        button -> Minecraft.getInstance().setScreen(new YsmTweakScreen(this, npc, selectedId, workingData())))
+                .bounds(listWidth + 12, 54, Math.max(150, width - listWidth - 24), 20).build());
 
         int bottom = height - 28;
         addRenderableWidget(Button.builder(Component.translatable("gui.customnpcs_ysm_compat.apply"),
@@ -84,11 +91,18 @@ public final class YsmModelSelectionScreen extends Screen {
     }
 
     private void updatePreview() {
-        PreviewOverrides.set(npc, new YsmDisplayData(enabled, selectedId));
+        if (tweaksButton != null) {
+            boolean configured = !selectedId.isBlank() && !Ysm265Adapter.tweakGroups(selectedId).isEmpty();
+            tweaksButton.active = configured;
+            tweaksButton.setMessage(Component.translatable(configured
+                    ? "gui.customnpcs_ysm_compat.tweaks.open"
+                    : "gui.customnpcs_ysm_compat.tweaks.empty"));
+        }
+        PreviewOverrides.set(npc, workingData());
     }
 
     private void apply() {
-        YsmDisplayAccess.set(npc.display, new YsmDisplayData(enabled, selectedId));
+        YsmDisplayAccess.set(npc.display, workingData());
         PreviewOverrides.clear(npc);
         AnimatedNpcRenderBridge.discardPreview(npc);
         parent.save();
@@ -96,7 +110,7 @@ public final class YsmModelSelectionScreen extends Screen {
     }
 
     private void restore() {
-        YsmDisplayAccess.set(npc.display, YsmDisplayData.DISABLED);
+        YsmDisplayAccess.set(npc.display, new YsmDisplayData(false, "", tweakProfiles));
         PreviewOverrides.clear(npc);
         AnimatedNpcRenderBridge.discardPreview(npc);
         parent.save();
@@ -107,6 +121,18 @@ public final class YsmModelSelectionScreen extends Screen {
         PreviewOverrides.clear(npc);
         AnimatedNpcRenderBridge.discardPreview(npc);
         Minecraft.getInstance().setScreen(parent);
+    }
+
+    YsmDisplayData workingData() {
+        return new YsmDisplayData(enabled, selectedId, tweakProfiles);
+    }
+
+    void replaceWorkingData(YsmDisplayData data) {
+        enabled = data.enabled();
+        selectedId = data.modelId();
+        tweakProfiles = data.tweakProfiles();
+        if (enabledButton != null) enabledButton.setMessage(enabledLabel());
+        updatePreview();
     }
 
     @Override
@@ -185,10 +211,10 @@ public final class YsmModelSelectionScreen extends Screen {
         int bottom = height - 48;
         if (!selectedId.isBlank() && !Ysm265Adapter.hasModel(selectedId)) {
             graphics.drawCenteredString(font, Component.translatable("gui.customnpcs_ysm_compat.missing"),
-                    centerX, 58, 0xFF5555);
+                    centerX, 80, 0xFF5555);
         }
         graphics.drawCenteredString(font, selectedId.isBlank() ? "-" : selectedId,
-                centerX, 72, 0xCCCCCC);
+                centerX, 96, 0xCCCCCC);
         InventoryScreen.renderEntityInInventoryFollowsMouse(graphics, centerX, bottom,
                 Math.max(24, Math.min(55, (height - 100) / 3)),
                 centerX - mouseX, bottom - 70 - mouseY, npc);
