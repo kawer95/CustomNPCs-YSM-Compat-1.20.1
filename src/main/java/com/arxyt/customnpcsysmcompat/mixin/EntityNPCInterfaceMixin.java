@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.mixin;
 
 import com.arxyt.customnpcsysmcompat.YsmTaczGunGoal;
+import com.arxyt.customnpcsysmcompat.YsmTaczProneGunGoal;
 import com.arxyt.customnpcsysmcompat.YsmTaczSentryGunGoal;
 import com.arxyt.customnpcsysmcompat.animation.DelayedMeleeAttack;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
@@ -24,6 +25,10 @@ public abstract class EntityNPCInterfaceMixin extends PathfinderMob {
     @Inject(method = "updateTasks", at = @At("TAIL"), remap = false)
     private void customnpcsYsmCompat$installGunGoal(CallbackInfo ci) {
         if (!level().isClientSide) {
+            // Prone commands disable MOVE to prevent the native crawl animation from being
+            // overwritten. Give the LOOK-only prone shooter precedence over the normal
+            // MOVE+LOOK goal so a prone ordered target can still operate its TaCZ weapon.
+            goalSelector.addGoal(-1, new YsmTaczProneGunGoal((EntityNPCInterface) (Object) this));
             goalSelector.addGoal(0, new YsmTaczGunGoal((EntityNPCInterface) (Object) this));
             // The normal gun goal owns MOVE and is intentionally disabled by Dominion's
             // HOLD policy. This LOOK-only goal can keep firing without reopening movement.
