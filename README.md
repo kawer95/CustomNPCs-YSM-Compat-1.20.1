@@ -20,7 +20,7 @@ Open a CustomNPC's model editor and select **YSM Model**. The page supports sear
 
 For the local player, the same formal `config_forms` choices made through YSM's **Z** menu are also retained automatically. They are stored per player UUID and per model in `config/customnpcs_ysm_compat_player_tweaks.json`, then restored after the YSM player model is ready. The file contains only form IDs and selected values—never raw Molang. Values that YSM normally synchronizes are sent using YSM's own packet; its intentionally local-only `v.roaming.*` values remain local.
 
-Version 0.4.3 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. With TaCZ present, the real NPC owns the gun state while the proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations. Melee synchronization diagnostics use the `YSM-ATTACK-TRACE` log prefix.
+Version 0.4.4 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. With TaCZ present, a gun NPC first completes TaCZ ADS before firing and automatically exits ADS when its gun-combat goal stops; the proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations. Melee synchronization diagnostics use the `YSM-ATTACK-TRACE` log prefix.
 
 The projectile slot and eight drop slots form the NPC's TaCZ ammunition inventory. Normal ammunition, ammo boxes and infinite ammo boxes are handled by TaCZ. Gun timing comes from the gun pack; CustomNPC ranged damage, projectile speed and burst timing do not override it. Server distance defaults are 64 blocks for sniper rifles, 48 for rifles and other weapons, and 32 for pistols, shotguns and SMGs.
 
@@ -32,4 +32,4 @@ The two required mod jars are resolved from `../原型模组` by `build.gradle`.
 .\gradlew.bat clean test build -Pdominionsword_jar=../DominionSword-1.20.1/build/libs/dominionsword-1.32.6.jar
 ```
 
-The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.3.jar`.
+The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.4.jar`.

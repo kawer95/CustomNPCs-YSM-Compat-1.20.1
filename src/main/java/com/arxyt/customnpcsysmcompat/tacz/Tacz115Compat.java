@@ -83,20 +83,9 @@ public final class Tacz115Compat implements GunCompatFacade {
             operator.draw(shooter::getMainHandItem);
             return Action.waitFor(seconds(data.getDrawTime()) + 2);
         }
-        boolean sniper = index.getType().equalsIgnoreCase(GunTabType.SNIPER.name());
-        float distance = shooter.distanceTo(target);
-        float aimBoundary = Math.max(1.0F, shooter.stats.ranged.getRange());
-
-        if (sniper && !operator.getSynIsAiming()) {
+        if (needsAimForTarget(operator.getSynIsAiming())) {
             operator.aim(true);
             return Action.waitFor(seconds(data.getAimTime()) + 2);
-        }
-        if (!sniper) {
-            boolean shouldAim = distance > aimBoundary;
-            if (operator.getSynIsAiming() != shouldAim) {
-                operator.aim(shouldAim);
-                return Action.waitFor(seconds(data.getAimTime()) + 2);
-            }
         }
 
         double x = target.getX() - shooter.getX();
@@ -203,6 +192,11 @@ public final class Tacz115Compat implements GunCompatFacade {
     static boolean isExactAimShot(int accuracy, int accuracyRoll) {
         int safeAccuracy = Math.max(0, Math.min(100, accuracy));
         return Math.floorMod(accuracyRoll, 100) < safeAccuracy;
+    }
+
+    /** Every active NPC gun engagement uses TaCZ ADS until its combat goal stops. */
+    static boolean needsAimForTarget(boolean isAiming) {
+        return !isAiming;
     }
 
     private void traceResult(EntityNPCInterface shooter, ItemStack gunStack, IGun gun,

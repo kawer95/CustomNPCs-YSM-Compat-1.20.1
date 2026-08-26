@@ -28,4 +28,10 @@ final class Tacz115CompatAimTest {
         assertTrue(positive > 2.0F);
         assertTrue(negative < -2.0F);
     }
+
+    @Test
+    void activeNpcGunTargetAlwaysRequestsAdsUntilGoalStopsIt() {
+        assertTrue(Tacz115Compat.needsAimForTarget(false));
+        assertFalse(Tacz115Compat.needsAimForTarget(true));
+    }
 }
