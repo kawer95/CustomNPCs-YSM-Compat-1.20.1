@@ -17,7 +17,7 @@ import java.util.WeakHashMap;
  * head snap before the next target arrives.</p>
  */
 public final class NpcGunAimLock {
-    private static final Map<EntityNPCInterface, Float> LAST_COMMAND_YAW =
+    private static final Map<EntityNPCInterface, AimState> LAST_COMMAND_AIM =
             Collections.synchronizedMap(new WeakHashMap<>());
 
     private NpcGunAimLock() {
@@ -30,7 +30,11 @@ public final class NpcGunAimLock {
         double dz = target.getZ() - npc.getZ();
         if (dx * dx + dz * dz < 1.0E-8D) return;
         float yaw = (float) -Math.toDegrees(Math.atan2(dx, dz));
-        LAST_COMMAND_YAW.put(npc, yaw);
+        // This is deliberately the CustomNPCs-native forced look state, not just a
+        // one-tick LookControl request. EntityAILook then stops restoring DataAI.orientation
+        // between shots, which makes the target-facing body direction authoritative.
+        npc.lookAi.rotate(target);
+        LAST_COMMAND_AIM.put(npc, new AimState(target, yaw));
         apply(npc, yaw);
     }
 
@@ -56,21 +60,34 @@ public final class NpcGunAimLock {
         // Dominion deliberately hides the next target during its post-kill reaction.  Keep
         // the prior heading only while its persistent attack queue still exists.
         if (DominionCommandBridge.hasQueuedAttack(npc)) {
-            Float yaw = LAST_COMMAND_YAW.get(npc);
-            if (yaw != null) apply(npc, yaw);
+            AimState aim = LAST_COMMAND_AIM.get(npc);
+            if (aim != null) {
+                npc.lookAi.rotate(aim.target());
+                apply(npc, aim.yaw());
+            }
             return;
         }
         clear(npc);
     }
 
     private static void clear(EntityNPCInterface npc) {
-        if (npc != null) LAST_COMMAND_YAW.remove(npc);
+        if (npc != null && LAST_COMMAND_AIM.remove(npc) != null) {
+            // Release only a forced state this compatibility layer created. The NPC's normal
+            // look task can then resume naturally once the Dominion gun command has ended.
+            npc.lookAi.stop();
+        }
     }
 
     /** Matches the direct lock used for Dominion's retreating gun maids. */
     private static void apply(EntityNPCInterface npc, float yaw) {
         npc.setYRot(yaw);
+        npc.yRotO = yaw;
         npc.setYHeadRot(yaw);
+        npc.yHeadRotO = yaw;
         npc.yBodyRot = yaw;
+        npc.yBodyRotO = yaw;
+    }
+
+    private record AimState(LivingEntity target, float yaw) {
     }
 }

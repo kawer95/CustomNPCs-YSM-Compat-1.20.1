@@ -58,7 +58,6 @@ public final class YsmTaczSentryGunGoal extends Goal {
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
-        NpcGunAimLock.track(npc, target);
         npc.setYRot(Mth.rotateIfNecessary(npc.getYRot(), npc.yHeadRot, 30.0F));
 
         double range = Math.max(1.0D, npc.stats.ranged.getRange());
