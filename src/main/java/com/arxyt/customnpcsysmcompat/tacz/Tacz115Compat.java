@@ -27,6 +27,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.entity.PartEntity;
 import net.minecraftforge.event.level.ExplosionEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import com.tacz.guns.api.event.common.EntityHurtByGunEvent;
@@ -405,7 +406,7 @@ public final class Tacz115Compat implements GunCompatFacade {
     private static boolean shouldCancel(LivingEntity attacker, Entity hurt) {
         if (attacker instanceof EntityNPCInterface shooter &&
                 com.arxyt.customnpcsysmcompat.GunCompat.active(shooter)) {
-            if (hurt == shooter.getTarget()) return false;
+            if (isCurrentGunTarget(shooter, hurt)) return false;
             if (hurt instanceof Player player) return !shooter.faction.isAggressiveToPlayer(player);
             if (hurt instanceof EntityNPCInterface npc) return !shooter.faction.isAggressiveToNpc(npc);
             return true;
@@ -415,5 +416,17 @@ public final class Tacz115Compat implements GunCompatFacade {
             return npc.isAlliedTo(attacker);
         }
         return false;
+    }
+
+    /**
+     * A number of Forge bosses expose damageable hit boxes as {@link PartEntity} instances.
+     * TaCZ correctly reports the part as the hurt entity, while the commanded CNPC target is
+     * its parent. Treat only direct parts of that exact current target as authorized; this
+     * preserves the faction-safety rule for every unrelated multipart entity.
+     */
+    private static boolean isCurrentGunTarget(EntityNPCInterface shooter, Entity hurt) {
+        if (shooter == null || hurt == null) return false;
+        Entity target = shooter.getTarget();
+        return hurt == target || hurt instanceof PartEntity<?> part && part.getParent() == target;
     }
 }
