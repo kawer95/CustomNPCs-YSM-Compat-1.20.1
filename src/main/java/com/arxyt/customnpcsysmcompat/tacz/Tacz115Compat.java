@@ -20,6 +20,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import noppes.npcs.entity.EntityNPCInterface;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -47,6 +49,8 @@ public final class Tacz115Compat implements GunCompatFacade {
     private final Map<EntityNPCInterface, String> equippedGuns =
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
     private final Map<EntityNPCInterface, ShootResult> lastResults =
+            java.util.Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<EntityNPCInterface, Integer> lastProneAimTraceTick =
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
 
     public Tacz115Compat() {
@@ -96,9 +100,16 @@ public final class Tacz115Compat implements GunCompatFacade {
         double z = target.getZ() - shooter.getZ();
         float yaw = (float) -Math.toDegrees(Math.atan2(x, z));
         float pitch = (float) -Math.toDegrees(Math.atan2(y, Math.sqrt(x * x + z * z)));
-        float adjustedYaw = yaw + npcAimError(shooter, target, x, z);
+        int accuracyRoll = shooter.getRandom().nextInt(100);
+        double magnitudeRoll = shooter.getRandom().nextDouble();
+        boolean positiveError = shooter.getRandom().nextBoolean();
+        float aimError = aimErrorDegrees(shooter.stats.ranged.getAccuracy(), target.getBbWidth(),
+                Math.sqrt(x * x + z * z), accuracyRoll, magnitudeRoll, positiveError);
+        float adjustedYaw = yaw + aimError;
         ShootResult result = operator.shoot(() -> pitch, () -> adjustedYaw);
         traceResult(shooter, gunStack, gun, operator, result);
+        traceProneAim(shooter, target, gun, operator, result, yaw, pitch, adjustedYaw,
+                aimError, accuracyRoll);
 
         return switch (result) {
             case SUCCESS -> new Action(successDelay(gun, gunStack, shooter), true);
@@ -209,11 +220,6 @@ public final class Tacz115Compat implements GunCompatFacade {
      * deliberately aim outside the target. TaCZ weapon spread remains active
      * for both paths and is intentionally not counted as CustomNPC accuracy.
      */
-    private static float npcAimError(EntityNPCInterface shooter, LivingEntity target, double x, double z) {
-        return aimErrorDegrees(shooter.stats.ranged.getAccuracy(), target.getBbWidth(), Math.sqrt(x * x + z * z),
-                shooter.getRandom().nextInt(100), shooter.getRandom().nextDouble(), shooter.getRandom().nextBoolean());
-    }
-
     /** Returns zero for a precise target lock; nonzero values intentionally miss the target silhouette. */
     static float aimErrorDegrees(int accuracy, double targetWidth, double horizontalDistance,
                                  int accuracyRoll, double magnitudeRoll, boolean positive) {
@@ -274,6 +280,60 @@ public final class Tacz115Compat implements GunCompatFacade {
                 shooter.getId(), shooter.tickCount, result, previous, gun.getGunId(gunStack),
                 gun.getCurrentAmmoCount(gunStack), operator.needCheckAmmo(), compatible[0],
                 operator.getSynReloadState().getStateType(), inventory);
+    }
+
+    /**
+     * Limited diagnostic for reports that prone machine-gun fire misses large entities.
+     * It proves whether our pre-TaCZ aim ray intersects the target collision box; it does
+     * not claim to simulate TaCZ muzzle offsets, weapon spread, gravity, or block collision.
+     */
+    private void traceProneAim(EntityNPCInterface shooter, LivingEntity target, IGun gun,
+                               IGunOperator operator, ShootResult result, float exactYaw,
+                               float eyePitch, float adjustedYaw, float aimError, int accuracyRoll) {
+        if (!NpcCrawlState.isCrawling(shooter) || result != ShootResult.SUCCESS) return;
+        Integer previousTick = lastProneAimTraceTick.get(shooter);
+        if (previousTick != null && shooter.tickCount - previousTick < 10) return;
+        lastProneAimTraceTick.put(shooter, shooter.tickCount);
+
+        Vec3 origin = shooter.getEyePosition();
+        AABB box = target.getBoundingBox();
+        Vec3 boxCenter = box.getCenter();
+        double dx = boxCenter.x - origin.x;
+        double dy = boxCenter.y - origin.y;
+        double dz = boxCenter.z - origin.z;
+        double horizontal = Math.sqrt(dx * dx + dz * dz);
+        float centerPitch = (float) -Math.toDegrees(Math.atan2(dy, horizontal));
+        double rayLength = Math.max(1.0D, origin.distanceTo(boxCenter)
+                + Math.max(box.getXsize(), Math.max(box.getYsize(), box.getZsize())) * 2.0D + 1.0D);
+        boolean exactRayHits = rayHits(box, origin, eyePitch, exactYaw, rayLength);
+        boolean adjustedRayHits = rayHits(box, origin, eyePitch, adjustedYaw, rayLength);
+
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[TACZ-PRONE-AIM-TRACE] npcId={} tick={} gun={} targetId={} targetClass={} result={} " +
+                        "nativeCrawl={} taczCrawl={} ads={} accuracy={} roll={} exactYaw={} adjustedYaw={} " +
+                        "yawError={} eyePitch={} centerPitch={} eyeY={} origin={} targetEyeY={} box={} " +
+                        "boxSize=({},{},{}) distance={} lineOfSight={} exactRayHits={} adjustedRayHits={} " +
+                        "note=ray_uses_npc_eye_only",
+                shooter.getId(), shooter.tickCount, gun.getGunId(shooter.getMainHandItem()), target.getId(),
+                target.getClass().getName(), result, NpcCrawlState.isCrawling(shooter),
+                operator.getDataHolder().isCrawling, operator.getSynIsAiming(), shooter.stats.ranged.getAccuracy(),
+                accuracyRoll, decimal(exactYaw), decimal(adjustedYaw), decimal(aimError), decimal(eyePitch),
+                decimal(centerPitch), decimal(shooter.getEyeY()), vector(origin), decimal(target.getEyeY()),
+                box, decimal(box.getXsize()), decimal(box.getYsize()), decimal(box.getZsize()),
+                decimal(origin.distanceTo(boxCenter)), shooter.hasLineOfSight(target), exactRayHits, adjustedRayHits);
+    }
+
+    private static boolean rayHits(AABB box, Vec3 origin, float pitch, float yaw, double length) {
+        Vec3 end = origin.add(Vec3.directionFromRotation(pitch, yaw).scale(Math.max(1.0D, length)));
+        return box.clip(origin, end).isPresent();
+    }
+
+    private static String vector(Vec3 value) {
+        return "(" + decimal(value.x) + "," + decimal(value.y) + "," + decimal(value.z) + ")";
+    }
+
+    private static String decimal(double value) {
+        return Double.isFinite(value) ? String.format(Locale.ROOT, "%.3f", value) : "nan";
     }
 
     @SubscribeEvent
