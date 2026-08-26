@@ -15,4 +15,11 @@ final class DominionCommandBridgeTest {
         assertFalse(DominionCommandBridge.hasQueuedAttack("hold", 2));
         assertFalse(DominionCommandBridge.hasQueuedAttack("", 2));
     }
+
+    @Test
+    void onlyDirectSingleTargetOrdersBypassTargetReaction() {
+        assertTrue(DominionCommandBridge.isDirectSingleTargetAttack("attack", true));
+        assertFalse(DominionCommandBridge.isDirectSingleTargetAttack("attack", false));
+        assertFalse(DominionCommandBridge.isDirectSingleTargetAttack("hold", true));
+    }
 }

@@ -36,9 +36,9 @@ final class CommandGunTacticsTest {
     @Test
     void onlyIdleMovementLockedCommandStateIsAStationarySentry() {
         DominionCommandBridge.Snapshot hold = new DominionCommandBridge.Snapshot(
-                true, false, true, false, false, false, null);
+                true, false, true, false, false, false, false, null);
         DominionCommandBridge.Snapshot move = new DominionCommandBridge.Snapshot(
-                true, true, false, false, false, false, null);
+                true, true, false, false, false, false, false, null);
         assertEquals(true, hold.stationarySentry());
         assertEquals(false, move.stationarySentry());
     }

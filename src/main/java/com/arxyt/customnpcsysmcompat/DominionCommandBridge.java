@@ -14,8 +14,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class DominionCommandBridge {
     private static final String DOMINION_ORDER = "DominionOrder";
     private static final String DOMINION_ATTACK_QUEUE = "DominionAttackQueue";
+    // Dominion writes this only for PlayerControl.attack(single target), not Ctrl area queues.
+    private static final String DOMINION_DIRECT_ATTACK = "DominionOfflineAttack";
     private static final String ATTACK_ORDER = "attack";
-    private static final Snapshot UNAVAILABLE = new Snapshot(false, false, false, false, false, false, null);
+    private static final Snapshot UNAVAILABLE = new Snapshot(false, false, false, false, false, false, false, null);
     private static final AtomicBoolean ERROR_REPORTED = new AtomicBoolean();
     private static volatile Access access;
 
@@ -50,12 +52,14 @@ public final class DominionCommandBridge {
             Object view = current.commandView.invoke(unit);
             if (view == null || !(boolean) current.active.invoke(view)) return UNAVAILABLE;
             Object target = current.attackTarget.invoke(view);
+            CompoundTag data = unit.getPersistentData();
             return new Snapshot(true,
                     (boolean) current.nativeCombatBlocked.invoke(view),
                     (boolean) current.autonomousMovementBlocked.invoke(view),
                     (boolean) current.nativeApproachBlocked.invoke(view),
                     (boolean) current.closeQuarters.invoke(view),
                     current.prone != null && (boolean) current.prone.invoke(view),
+                    isDirectSingleTargetAttack(data.getString(DOMINION_ORDER), data.hasUUID(DOMINION_DIRECT_ATTACK)),
                     target instanceof LivingEntity living ? living : null);
         } catch (Throwable error) {
             report(error);
@@ -90,6 +94,14 @@ public final class DominionCommandBridge {
         return ATTACK_ORDER.equals(order) && queueEntries > 0;
     }
 
+    /**
+     * Dominion uses a persistent fallback UUID only for its direct one-target attack command.
+     * Ctrl/area attacks instead write an attack queue and deliberately omit this field.
+     */
+    static boolean isDirectSingleTargetAttack(String order, boolean hasDirectTarget) {
+        return ATTACK_ORDER.equals(order) && hasDirectTarget;
+    }
+
     private static MethodHandle unreflect(MethodHandles.Lookup lookup, Method method)
             throws IllegalAccessException {
         return lookup.unreflect(method);
@@ -115,9 +127,15 @@ public final class DominionCommandBridge {
     public record Snapshot(boolean active, boolean nativeCombatBlocked,
                             boolean autonomousMovementBlocked, boolean nativeApproachBlocked,
                             boolean closeQuarters, boolean prone,
+                            boolean directSingleTargetAttack,
                             LivingEntity attackTarget) {
         public boolean commandedAttack() {
             return active && !nativeCombatBlocked && attackTarget != null;
+        }
+
+        /** Only a player-clicked one-target attack may skip automatic target reacquisition. */
+        public boolean directAttackOrder() {
+            return commandedAttack() && directSingleTargetAttack;
         }
 
         /** Idle/HOLD control may use weapons, but it must never create locomotion intent. */

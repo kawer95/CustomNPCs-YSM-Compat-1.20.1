@@ -58,7 +58,7 @@ public final class YsmTaczProneGunGoal extends Goal {
         npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
-        if (NpcGunTargetReaction.blocks(npc, target, settings, true)) {
+        if (NpcGunTargetReaction.blocks(npc, target, settings, command.directAttackOrder())) {
             stopGun(facade);
             return;
         }

@@ -42,11 +42,12 @@ public final class NpcGunTargetReaction {
      * Starts or continues the reaction window when an automatically acquired
      * replacement follows a dead target.
      *
-     * <p>An explicit Dominion attack order is fundamentally different from automatic
-     * target acquisition: the commander has already selected the target, so keeping a
-     * previous post-kill reaction window would make a direct order feel unresponsive.
-     * Such an order clears stale state and is allowed to begin TaCZ's normal draw/ADS
-     * sequence immediately.</p>
+     * <p>A direct one-target Dominion attack is fundamentally different from automatic
+     * target acquisition: the commander has selected one target, so keeping a previous
+     * post-kill reaction window would make that direct order feel unresponsive. Ctrl/area
+     * attack queues are not direct orders; their successor targets retain this reaction
+     * window. A direct order clears stale state and begins TaCZ's normal draw/ADS sequence
+     * immediately.</p>
      */
     public static boolean blocks(EntityNPCInterface npc, LivingEntity candidate,
                                  DominionCombatBalance.Settings settings, boolean explicitAttackOrder) {
@@ -137,7 +138,7 @@ public final class NpcGunTargetReaction {
                 * (MAX_DYNAMIC_REACTION_TICKS - minimum));
     }
 
-    /** Explicit commander target selection must not inherit an automatic target-switch delay. */
+    /** Only a direct one-target commander order bypasses automatic target-switch delay. */
     static boolean bypassesReactionWindow(boolean explicitAttackOrder) {
         return explicitAttackOrder;
     }
