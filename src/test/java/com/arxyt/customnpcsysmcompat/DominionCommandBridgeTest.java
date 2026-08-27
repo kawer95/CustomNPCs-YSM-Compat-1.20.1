@@ -2,6 +2,7 @@ package com.arxyt.customnpcsysmcompat;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -21,5 +22,10 @@ final class DominionCommandBridgeTest {
         assertTrue(DominionCommandBridge.isDirectSingleTargetAttack("attack", true));
         assertFalse(DominionCommandBridge.isDirectSingleTargetAttack("attack", false));
         assertFalse(DominionCommandBridge.isDirectSingleTargetAttack("hold", true));
+    }
+
+    @Test
+    void missingOptionalDominionSpeedApiUsesCallerFallback() {
+        assertEquals(1.6D, DominionCommandBridge.commandMovementSpeed(null, 1.6D));
     }
 }

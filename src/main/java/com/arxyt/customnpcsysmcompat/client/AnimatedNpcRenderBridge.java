@@ -295,7 +295,12 @@ public final class AnimatedNpcRenderBridge {
         player.attackAnim = attacking ? attack.currentProgress() : 0.0F;
         player.oAttackAnim = attacking ? attack.previousProgress() : 0.0F;
         traceAttack(holder, npc, partialTick, attack, frame, attacking, player);
-        player.setSprinting(false);
+        // Dominion's server-side command is the single source of truth for sprint.  The
+        // movement sample gates the flag so a delayed entity-data packet cannot select a run
+        // animation while the proxy is stationary; YSM then sees the same isSprinting state as
+        // a real player and can select both standard run and TACZ tac:run controllers.
+        player.setSprinting(!preview && !dead && !NpcCrawlState.isCrawling(npc)
+                && movement.walking() && npc.isSprinting());
         player.setShiftKeyDown(false);
         player.setSwimming(false);
         player.stopUsingItem();

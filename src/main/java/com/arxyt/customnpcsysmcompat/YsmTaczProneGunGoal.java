@@ -55,6 +55,7 @@ public final class YsmTaczProneGunGoal extends Goal {
         if (target == null || facade == null) return;
 
         // Hard invariants for a prone command: no navigation or strafing, only aim and fire.
+        npc.setSprinting(false);
         npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
@@ -91,6 +92,7 @@ public final class YsmTaczProneGunGoal extends Goal {
 
     @Override
     public void stop() {
+        npc.setSprinting(false);
         npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
         GunCompatFacade facade = GunCompat.facade();

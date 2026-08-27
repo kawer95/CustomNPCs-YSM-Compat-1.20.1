@@ -38,7 +38,8 @@ public final class DominionCommandBridge {
                     unreflect(lookup, view.getMethod("nativeApproachBlocked")),
                     unreflect(lookup, view.getMethod("closeQuarters")),
                     optionalUnreflect(lookup, view, "prone"),
-                    unreflect(lookup, view.getMethod("attackTarget")));
+                    unreflect(lookup, view.getMethod("attackTarget")),
+                    optionalUnreflect(lookup, api, "commandMovementSpeed", Mob.class));
             CustomNpcsYsmCompat.LOGGER.info("Dominion Sword command coordination enabled");
         } catch (ReflectiveOperationException | LinkageError error) {
             report(error);
@@ -95,6 +96,27 @@ public final class DominionCommandBridge {
     }
 
     /**
+     * Returns Dominion's server-authoritative pursuit multiplier when the optional API exists.
+     * Older Dominion builds and standalone CNPC-YSM installations deliberately use the caller's
+     * fallback, so this bridge never becomes a runtime dependency.
+     */
+    public static double commandMovementSpeed(Mob unit, double fallback) {
+        Access current = access;
+        if (current == null || current.movementSpeed == null || unit == null || unit.level().isClientSide) {
+            return fallback;
+        }
+        try {
+            Object value = current.movementSpeed.invoke(unit);
+            if (value instanceof Number number && Double.isFinite(number.doubleValue()) && number.doubleValue() > 0.0D) {
+                return number.doubleValue();
+            }
+        } catch (Throwable error) {
+            report(error);
+        }
+        return fallback;
+    }
+
+    /**
      * Dominion uses a persistent fallback UUID only for its direct one-target attack command.
      * Ctrl/area attacks instead write an attack queue and deliberately omit this field.
      */
@@ -108,10 +130,11 @@ public final class DominionCommandBridge {
     }
 
     /** Dominion 1.32.7 introduced prone; older installed builds simply report false. */
-    private static MethodHandle optionalUnreflect(MethodHandles.Lookup lookup, Class<?> owner, String method)
+    private static MethodHandle optionalUnreflect(MethodHandles.Lookup lookup, Class<?> owner, String method,
+                                                  Class<?>... parameterTypes)
             throws IllegalAccessException {
         try {
-            return unreflect(lookup, owner.getMethod(method));
+            return unreflect(lookup, owner.getMethod(method, parameterTypes));
         } catch (NoSuchMethodException ignored) {
             return null;
         }
@@ -148,6 +171,7 @@ public final class DominionCommandBridge {
                            MethodHandle nativeCombatBlocked, MethodHandle autonomousMovementBlocked,
                            MethodHandle nativeApproachBlocked, MethodHandle closeQuarters,
                            MethodHandle prone,
-                           MethodHandle attackTarget) {
+                           MethodHandle attackTarget,
+                           MethodHandle movementSpeed) {
     }
 }

@@ -68,6 +68,7 @@ public final class YsmTaczGunGoal extends Goal {
         // update that stops this gun goal. Never erase that fresh path.
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
         if (!command.nativeCombatBlocked()) npc.getNavigation().stop();
+        if (command.active()) npc.setSprinting(false);
         npc.getMoveControl().strafe(0.0F, 0.0F);
         GunCompatFacade facade = GunCompat.facade();
         if (facade != null) {
@@ -90,6 +91,7 @@ public final class YsmTaczGunGoal extends Goal {
         if (command.commandedAttack() && npc.getTarget() != target) npc.setTarget(target);
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
         if (NpcGunTargetReaction.blocks(npc, target, settings, command.directAttackOrder())) {
+            if (command.active()) npc.setSprinting(false);
             npc.getNavigation().stop();
             npc.getMoveControl().strafe(0.0F, 0.0F);
             try {
@@ -109,6 +111,7 @@ public final class YsmTaczGunGoal extends Goal {
         String maneuverName = npc.isPassenger() ? "PASSENGER" : "UNDECIDED";
 
         if (npc.isPassenger()) {
+            if (command.active()) npc.setSprinting(false);
             npc.getNavigation().stop();
             npc.getMoveControl().strafe(0.0F, 0.0F);
         } else if (command.active()) {
@@ -118,11 +121,14 @@ public final class YsmTaczGunGoal extends Goal {
             switch (maneuver) {
                 case PURSUE -> {
                     strafeTime = -1;
-                    npc.getNavigation().moveTo(target, 1.0D);
+                    double navigationSpeed = DominionCommandBridge.commandMovementSpeed(npc, 1.0D);
+                    npc.setSprinting(navigationSpeed > 1.0D && !command.prone());
+                    npc.getNavigation().moveTo(target, navigationSpeed);
                     npc.getMoveControl().strafe(0.0F, 0.0F);
                 }
                 case RETREAT -> {
                     retreating = true;
+                    npc.setSprinting(false);
                     npc.getNavigation().stop();
                     npc.getMoveControl().strafe(-0.5F, 0.0F);
                     faceTargetWhileRetreating(target);
@@ -131,6 +137,7 @@ public final class YsmTaczGunGoal extends Goal {
                     // SENTRY is a stationary native-target stance; HOLD is an ordered
                     // attack already at a safe firing distance. Neither may move.
                     strafeTime = -1;
+                    npc.setSprinting(false);
                     npc.getNavigation().stop();
                     npc.getMoveControl().strafe(0.0F, 0.0F);
                 }
@@ -159,6 +166,10 @@ public final class YsmTaczGunGoal extends Goal {
         traceRetreat(target, retreating, maneuverName, distance, desired, canSee, command);
         if (CommandGunTactics.canFire(command.prone(), canSee, distance, desired) && --actionCooldown <= 0) {
             try {
+                // TaCZ rejects a fire request while sprinting.  A command may have just
+                // crossed the firing boundary, so clear the replicated sprint state before
+                // handing the shot to the weapon facade.
+                if (command.active()) npc.setSprinting(false);
                 GunCompatFacade.Action action = facade.operate(npc, target);
                 actionCooldown = action.delayTicks();
             } catch (Throwable error) {
