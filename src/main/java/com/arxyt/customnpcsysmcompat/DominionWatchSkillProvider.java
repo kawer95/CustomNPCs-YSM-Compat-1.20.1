@@ -12,7 +12,7 @@ import java.util.List;
 /** Optional Dominion-owned skill provider for YSM CustomNPCs holding an active TACZ weapon. */
 public final class DominionWatchSkillProvider implements DominionSkillProvider {
     private static final String ID = "dominionsword:watch";
-    private static final String ICON = "minecraft:textures/item/shield.png";
+    private static final String ICON = "dominionsword:textures/gui/skill/watch.png";
 
     @Override
     public boolean supports(Entity actor) {
