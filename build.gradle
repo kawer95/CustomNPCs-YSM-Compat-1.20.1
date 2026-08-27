@@ -74,6 +74,16 @@ tasks.named('processResources', ProcessResources).configure {
 }
 
 tasks.named('jar', Jar).configure {
+    // The Mixin annotation processor writes the production refmap after compilation.
+    // MixinGradle does not copy that generated file into this ForgeGradle 6 JAR by
+    // default, which leaves production accessors targeting the deobfuscated name.
+    from(layout.buildDirectory.dir('tmp/compileJava')) {
+        include 'compileJava-refmap.json'
+        rename 'compileJava-refmap.json', 'customnpcs_ysm_compat.refmap.json'
+    }
+    // MixinGradle contributes the same generated file for some task orders.
+    // Keep a single, deterministic copy in the release archive.
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from('LICENSE') { into 'META-INF' }
     finalizedBy 'reobfJar'
 }
