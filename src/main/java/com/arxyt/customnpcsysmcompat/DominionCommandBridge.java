@@ -17,7 +17,7 @@ public final class DominionCommandBridge {
     // Dominion writes this only for PlayerControl.attack(single target), not Ctrl area queues.
     private static final String DOMINION_DIRECT_ATTACK = "DominionOfflineAttack";
     private static final String ATTACK_ORDER = "attack";
-    private static final Snapshot UNAVAILABLE = new Snapshot(false, false, false, false, false, false, false, null);
+    private static final Snapshot UNAVAILABLE = new Snapshot(false, false, false, false, false, false, false, false, null);
     private static final AtomicBoolean ERROR_REPORTED = new AtomicBoolean();
     private static volatile Access access;
 
@@ -38,8 +38,10 @@ public final class DominionCommandBridge {
                     unreflect(lookup, view.getMethod("nativeApproachBlocked")),
                     unreflect(lookup, view.getMethod("closeQuarters")),
                     optionalUnreflect(lookup, view, "prone"),
+                    optionalUnreflect(lookup, view, "watching"),
                     unreflect(lookup, view.getMethod("attackTarget")),
-                    optionalUnreflect(lookup, api, "commandMovementSpeed", Mob.class));
+                    optionalUnreflect(lookup, api, "commandMovementSpeed", Mob.class),
+                    optionalUnreflect(lookup, api, "watchRange", Mob.class, int.class));
             CustomNpcsYsmCompat.LOGGER.info("Dominion Sword command coordination enabled");
         } catch (ReflectiveOperationException | LinkageError error) {
             report(error);
@@ -60,6 +62,7 @@ public final class DominionCommandBridge {
                     (boolean) current.nativeApproachBlocked.invoke(view),
                     (boolean) current.closeQuarters.invoke(view),
                     current.prone != null && (boolean) current.prone.invoke(view),
+                    current.watching != null && (boolean) current.watching.invoke(view),
                     isDirectSingleTargetAttack(data.getString(DOMINION_ORDER), data.hasUUID(DOMINION_DIRECT_ATTACK)),
                     target instanceof LivingEntity living ? living : null);
         } catch (Throwable error) {
@@ -116,6 +119,21 @@ public final class DominionCommandBridge {
         return fallback;
     }
 
+    /** Uses Dominion's temporary watch range when present; older API versions retain the fallback. */
+    public static double watchRange(Mob unit, double fallback) {
+        Access current = access;
+        if (current == null || current.watchRange == null || unit == null || unit.level().isClientSide) return fallback;
+        try {
+            Object value = current.watchRange.invoke(unit, (int) Math.round(fallback));
+            if (value instanceof Number number && Double.isFinite(number.doubleValue()) && number.doubleValue() > 0.0D) {
+                return number.doubleValue();
+            }
+        } catch (Throwable error) {
+            report(error);
+        }
+        return fallback;
+    }
+
     /**
      * Dominion uses a persistent fallback UUID only for its direct one-target attack command.
      * Ctrl/area attacks instead write an attack queue and deliberately omit this field.
@@ -149,9 +167,16 @@ public final class DominionCommandBridge {
 
     public record Snapshot(boolean active, boolean nativeCombatBlocked,
                             boolean autonomousMovementBlocked, boolean nativeApproachBlocked,
-                            boolean closeQuarters, boolean prone,
+                            boolean closeQuarters, boolean prone, boolean watching,
                             boolean directSingleTargetAttack,
                             LivingEntity attackTarget) {
+        /** Preserves the prior bridge-test constructor: old callers have no watch state. */
+        public Snapshot(boolean active, boolean nativeCombatBlocked, boolean autonomousMovementBlocked,
+                        boolean nativeApproachBlocked, boolean closeQuarters, boolean prone,
+                        boolean directSingleTargetAttack, LivingEntity attackTarget) {
+            this(active, nativeCombatBlocked, autonomousMovementBlocked, nativeApproachBlocked, closeQuarters,
+                    prone, false, directSingleTargetAttack, attackTarget);
+        }
         public boolean commandedAttack() {
             return active && !nativeCombatBlocked && attackTarget != null;
         }
@@ -163,15 +188,15 @@ public final class DominionCommandBridge {
 
         /** Idle/HOLD control may use weapons, but it must never create locomotion intent. */
         public boolean stationarySentry() {
-            return active && autonomousMovementBlocked && !nativeCombatBlocked && attackTarget == null;
+            return watching || active && autonomousMovementBlocked && !nativeCombatBlocked && attackTarget == null;
         }
     }
 
     private record Access(MethodHandle commandView, MethodHandle active,
                            MethodHandle nativeCombatBlocked, MethodHandle autonomousMovementBlocked,
                            MethodHandle nativeApproachBlocked, MethodHandle closeQuarters,
-                           MethodHandle prone,
+                           MethodHandle prone, MethodHandle watching,
                            MethodHandle attackTarget,
-                           MethodHandle movementSpeed) {
+                           MethodHandle movementSpeed, MethodHandle watchRange) {
     }
 }

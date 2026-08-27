@@ -115,8 +115,10 @@ public final class YsmTaczGunGoal extends Goal {
             npc.getNavigation().stop();
             npc.getMoveControl().strafe(0.0F, 0.0F);
         } else if (command.active()) {
-            CommandGunTactics.Maneuver maneuver = CommandGunTactics.decideControlled(
-                    command.commandedAttack(), canSee, distance, desired, command.closeQuarters(), command.prone());
+            CommandGunTactics.Maneuver maneuver = command.watching()
+                    ? CommandGunTactics.Maneuver.SENTRY
+                    : CommandGunTactics.decideControlled(
+                            command.commandedAttack(), canSee, distance, desired, command.closeQuarters(), command.prone());
             maneuverName = maneuver.name();
             switch (maneuver) {
                 case PURSUE -> {
@@ -227,7 +229,11 @@ public final class YsmTaczGunGoal extends Goal {
     }
 
     private double effectiveRange() {
-        if (DominionCommandBridge.snapshot(npc).active()) {
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        if (command.watching()) {
+            return DominionCommandBridge.watchRange(npc, 64.0D);
+        }
+        if (command.active()) {
             return Math.max(1.0D, npc.stats.ranged.getRange());
         }
         GunCompatFacade facade = GunCompat.facade();

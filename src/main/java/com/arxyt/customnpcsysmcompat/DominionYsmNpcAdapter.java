@@ -26,6 +26,11 @@ public final class DominionYsmNpcAdapter implements DominionUnitAdapter {
     }
 
     @Override
+    public boolean supportsWatch(Entity entity) {
+        return entity instanceof EntityNPCInterface npc && GunCompat.active(npc);
+    }
+
+    @Override
     public boolean beginOfflineTask(ServerPlayer player, Entity entity) {
         return supports(entity);
     }

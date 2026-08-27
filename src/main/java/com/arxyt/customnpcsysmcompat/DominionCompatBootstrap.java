@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat;
 
 import com.arxyt.dominionsword.api.DominionControlApi;
+import com.arxyt.dominionsword.api.DominionSkills;
 
 /** Loaded reflectively only after Forge confirms that Dominion Sword is present. */
 public final class DominionCompatBootstrap {
@@ -11,5 +12,6 @@ public final class DominionCompatBootstrap {
         DominionCommandBridge.load();
         DominionCombatBalance.load();
         DominionControlApi.registerAdapter(new DominionYsmNpcAdapter());
+        DominionSkills.register(new DominionWatchSkillProvider());
     }
 }
