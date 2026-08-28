@@ -100,7 +100,10 @@ public final class AnimatedNpcRenderBridge {
             }
             applyTweaks(holder, selected, modelChanged);
 
-            int size = npc.display.getSize();
+            // CustomNPCs 20260711 promotes display size from integer to float. Keeping the
+            // multiplier as float preserves fractional size while remaining source-compatible
+            // with the older integer-returning API.
+            float size = npc.display.getSize();
             boolean partialVisibility = resolvedVisibility == Visibility.PARTIAL;
             poseStack.pushPose();
             ProxyVisibilityContext.begin(partialVisibility, npc.getId());

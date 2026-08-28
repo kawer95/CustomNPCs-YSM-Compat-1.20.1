@@ -17,6 +17,7 @@ public final class DominionCommandBridge {
     // Dominion writes this only for PlayerControl.attack(single target), not Ctrl area queues.
     private static final String DOMINION_DIRECT_ATTACK = "DominionOfflineAttack";
     private static final String ATTACK_ORDER = "attack";
+    private static final String WATCH_ORDER = "watch";
     private static final Snapshot UNAVAILABLE = new Snapshot(false, false, false, false, false, false, false, false, null);
     private static final AtomicBoolean ERROR_REPORTED = new AtomicBoolean();
     private static volatile Access access;
@@ -41,7 +42,8 @@ public final class DominionCommandBridge {
                     optionalUnreflect(lookup, view, "watching"),
                     unreflect(lookup, view.getMethod("attackTarget")),
                     optionalUnreflect(lookup, api, "commandMovementSpeed", Mob.class),
-                    optionalUnreflect(lookup, api, "watchRange", Mob.class, int.class));
+                    optionalUnreflect(lookup, api, "watchRange", Mob.class, int.class),
+                    optionalUnreflect(lookup, api, "watchHasClearShot", Mob.class, LivingEntity.class));
             CustomNpcsYsmCompat.LOGGER.info("Dominion Sword command coordination enabled");
         } catch (ReflectiveOperationException | LinkageError error) {
             report(error);
@@ -80,12 +82,14 @@ public final class DominionCommandBridge {
     }
 
     /**
-     * Reports whether Dominion still has a real follow-up attack target queued for this unit.
+     * Reports whether Dominion still has a real follow-up gun target queued for this unit.
      *
      * <p>The public command view intentionally hides mutable queue data. ADS continuity needs
      * that one server-side fact, so this optional bridge reads the two version-bounded Dominion
      * persistent tags in one place only. {@link #snapshot(Mob)} runs first: no Dominion bridge,
-     * client entity, inactive command, malformed tag, or an empty queue all safely mean false.</p>
+     * client entity, inactive command, malformed tag, or an empty queue all safely mean false.
+     * A stationary watch order owns the same queue tag as a Ctrl attack order, so it must
+     * retain ADS while handing a dead target to the next watched enemy.</p>
      */
     public static boolean hasQueuedAttack(Mob unit) {
         if (unit == null || !snapshot(unit).active()) return false;
@@ -95,7 +99,7 @@ public final class DominionCommandBridge {
     }
 
     static boolean hasQueuedAttack(String order, int queueEntries) {
-        return ATTACK_ORDER.equals(order) && queueEntries > 0;
+        return (ATTACK_ORDER.equals(order) || WATCH_ORDER.equals(order)) && queueEntries > 0;
     }
 
     /**
@@ -132,6 +136,25 @@ public final class DominionCommandBridge {
             report(error);
         }
         return fallback;
+    }
+
+    /**
+     * Uses Dominion's authoritative sector and block-ray test during a watch order. This avoids
+     * a second, stricter vanilla eye-ray rejecting a target that the watch scan admitted through
+     * an exposed body point. Standalone and older Dominion installations retain the fallback.
+     */
+    public static boolean watchHasClearShot(Mob unit, LivingEntity target, boolean fallback) {
+        Access current = access;
+        if (current == null || current.watchHasClearShot == null || unit == null || target == null || unit.level().isClientSide) {
+            return fallback;
+        }
+        try {
+            Object value = current.watchHasClearShot.invoke(unit, target);
+            return value instanceof Boolean result ? result : fallback;
+        } catch (Throwable error) {
+            report(error);
+            return fallback;
+        }
     }
 
     /**
@@ -197,6 +220,7 @@ public final class DominionCommandBridge {
                            MethodHandle nativeApproachBlocked, MethodHandle closeQuarters,
                            MethodHandle prone, MethodHandle watching,
                            MethodHandle attackTarget,
-                           MethodHandle movementSpeed, MethodHandle watchRange) {
+                           MethodHandle movementSpeed, MethodHandle watchRange,
+                           MethodHandle watchHasClearShot) {
     }
 }

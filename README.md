@@ -5,8 +5,10 @@ Forge 1.20.1 compatibility mod that lets a CustomNPC use any locally loaded Yes 
 ## Required versions
 
 - Forge 47.4.22
-- CustomNPCs GBPort Unofficial `1.20.1.20260227`
-- Yes Steve Model `2.6.5-forge+mc1.20.1`
+- CustomNPCs GBPort Unofficial `1.20.1.20260711+`
+- Yes Steve Model `2.6.5-forge+mc1.20.1+`
+
+The build and automated compatibility checks use CustomNPCs `1.20.1.20260711` and YSM `2.6.5-forge+mc1.20.1` as their baseline. Forge's runtime dependency ranges intentionally have no upper bound: later versions are allowed to load. If a later YSM release changes one of its private, obfuscated client entry points, the adapter logs the failure and the affected NPC falls back to the normal CustomNPC model instead of assuming a second pinned YSM version.
 
 TaCZ `1.1.5` is optional. When installed, YSM-enabled CustomNPCs holding a TaCZ gun use real TaCZ shooting, aiming, bolting and reloading instead of CustomNPC projectile entities.
 
@@ -32,4 +34,4 @@ The two required mod jars are resolved from `../原型模组` by `build.gradle`.
 .\gradlew.bat clean test build -Pdominionsword_jar=../DominionSword-1.20.1/build/libs/dominionsword-1.32.7.jar
 ```
 
-The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.7.jar`.
+The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.31.jar`.

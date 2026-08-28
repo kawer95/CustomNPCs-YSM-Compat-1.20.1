@@ -559,7 +559,7 @@ public final class Ysm265Adapter {
 
     private static void report(Throwable error) {
         if (ERROR_REPORTED.compareAndSet(false, true)) {
-            CustomNpcsYsmCompat.LOGGER.error("YSM 2.6.5 adapter failed; affected NPCs will use their CustomNPCs model", error);
+            CustomNpcsYsmCompat.LOGGER.error("YSM compatibility adapter failed; affected NPCs will use their CustomNPCs model", error);
         }
     }
 

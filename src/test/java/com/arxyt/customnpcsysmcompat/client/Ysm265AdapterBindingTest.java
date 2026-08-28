@@ -6,10 +6,10 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-/** Locks the private YSM 2.6.5 symbols used by the reflection-only adapter. */
+/** Verifies the private symbols used by the reflection-only adapter on its YSM 2.6.5 baseline. */
 class Ysm265AdapterBindingTest {
     @Test
-    void configFormReflectionSymbolsExistInPinnedYsmVersion() {
+    void configFormReflectionSymbolsExistInBaselineYsmVersion() {
         assertDoesNotThrow(() -> {
             ClassLoader loader = getClass().getClassLoader();
             Class<?> form = Class.forName("com.elfmcys.yesstevemodel.O000OO0OoOoo0ooO0o000000", false, loader);

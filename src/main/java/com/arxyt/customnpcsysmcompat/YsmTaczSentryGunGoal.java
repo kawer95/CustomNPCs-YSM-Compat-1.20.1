@@ -1,6 +1,5 @@
 package com.arxyt.customnpcsysmcompat;
 
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import noppes.npcs.entity.EntityNPCInterface;
@@ -58,7 +57,7 @@ public final class YsmTaczSentryGunGoal extends Goal {
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
-        npc.setYRot(Mth.rotateIfNecessary(npc.getYRot(), npc.yHeadRot, 30.0F));
+        NpcGunAimLock.alignForShot(npc, target);
 
         double range = Math.max(1.0D, npc.stats.ranged.getRange());
         if (npc.distanceTo(target) > range || !npc.getSensing().hasLineOfSight(target)
@@ -85,6 +84,11 @@ public final class YsmTaczSentryGunGoal extends Goal {
     }
 
     private LivingEntity validTarget(DominionCommandBridge.Snapshot command) {
+        // Watch is not this native stationary-sentry mode.  Its target may be up to the
+        // Dominion watch range away and must be driven by YsmTaczGunGoal, which owns the
+        // 64-block range plus the authoritative multi-point ray test.  Allowing this
+        // LOOK-only goal to join watch arbitration reintroduced the CNPC display range.
+        if (command.watching()) return null;
         if (!command.stationarySentry() || !GunCompat.active(npc)) return null;
         LivingEntity target = npc.getTarget();
         if (target == null || !target.isAlive() || target == npc) return null;

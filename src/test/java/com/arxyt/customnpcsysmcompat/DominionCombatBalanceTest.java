@@ -8,10 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 final class DominionCombatBalanceTest {
     @Test
     void settingsAndUnavailableBridgeFailClosed() {
-        DominionCombatBalance.Settings settings = new DominionCombatBalance.Settings(true, true, true);
+        DominionCombatBalance.Settings settings = new DominionCombatBalance.Settings(true, true, true, true);
 
         assertTrue(settings.available());
         assertFalse(DominionCombatBalance.Settings.UNAVAILABLE.available());
         assertFalse(DominionCombatBalance.Settings.UNAVAILABLE.targetReactionEnabled());
+        assertFalse(DominionCombatBalance.Settings.UNAVAILABLE.customNpcStandingMachineGunAccuracyPenalty());
     }
 }

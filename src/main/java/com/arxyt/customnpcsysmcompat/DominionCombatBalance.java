@@ -26,8 +26,9 @@ public final class DominionCombatBalance {
             ClassLoader loader = DominionCombatBalance.class.getClassLoader();
             Class<?> config = Class.forName("com.arxyt.dominionsword.config.ServerConfig", true, loader);
             access = new Access(
-                    config.getField("BALANCE_MAID_TARGET_ACQUISITION"),
-                    config.getField("DYNAMIC_MAID_TARGET_ACQUISITION"));
+                    config.getField("BALANCE_CNPC_TARGET_ACQUISITION"),
+                    config.getField("DYNAMIC_CNPC_TARGET_ACQUISITION"),
+                    config.getField("STANDING_CNPC_MACHINE_GUN_ACCURACY_PENALTY"));
             CustomNpcsYsmCompat.LOGGER.info("Dominion Sword TaCZ balance enabled for YSM-CNPCs");
         } catch (ReflectiveOperationException | LinkageError error) {
             access = null;
@@ -42,7 +43,9 @@ public final class DominionCombatBalance {
         try {
             boolean balanceTargetAcquisition = booleanValue(current.balanceTargetAcquisition());
             boolean dynamicTargetAcquisition = booleanValue(current.dynamicTargetAcquisition());
-            return new Settings(true, balanceTargetAcquisition, dynamicTargetAcquisition);
+            boolean customNpcStandingMachineGunAccuracyPenalty = booleanValue(current.customNpcStandingMachineGunAccuracyPenalty());
+            return new Settings(true, balanceTargetAcquisition, dynamicTargetAcquisition,
+                    customNpcStandingMachineGunAccuracyPenalty);
         } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
             access = null;
             report(error);
@@ -71,12 +74,13 @@ public final class DominionCombatBalance {
         }
     }
 
-    /** Immutable copy of the two shared target-reaction configuration values. */
+    /** Immutable copy of the independent CNPC reaction values and shared TACZ stance penalty. */
     public record Settings(boolean available, boolean targetReactionEnabled,
-                           boolean dynamicTargetReaction) {
-        static final Settings UNAVAILABLE = new Settings(false, false, false);
+                           boolean dynamicTargetReaction, boolean customNpcStandingMachineGunAccuracyPenalty) {
+        static final Settings UNAVAILABLE = new Settings(false, false, false, false);
     }
 
-    private record Access(Field balanceTargetAcquisition, Field dynamicTargetAcquisition) {
+    private record Access(Field balanceTargetAcquisition, Field dynamicTargetAcquisition,
+                          Field customNpcStandingMachineGunAccuracyPenalty) {
     }
 }

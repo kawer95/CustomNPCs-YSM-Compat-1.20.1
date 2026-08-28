@@ -91,6 +91,7 @@ public final class YsmTaczGunGoal extends Goal {
         if (command.commandedAttack() && npc.getTarget() != target) npc.setTarget(target);
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
         if (NpcGunTargetReaction.blocks(npc, target, settings, command.directAttackOrder())) {
+            traceWatchFireGate(command, target, effectiveRange(), false, false, false, "TARGET_REACTION");
             if (command.active()) npc.setSprinting(false);
             npc.getNavigation().stop();
             npc.getMoveControl().strafe(0.0F, 0.0F);
@@ -103,10 +104,21 @@ public final class YsmTaczGunGoal extends Goal {
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
-        if (command.commandedAttack()) NpcGunAimLock.track(npc, target);
+        if (command.commandedAttack()) {
+            NpcGunAimLock.track(npc, target);
+        } else {
+            // TaCZ computes its bullet yaw directly from this target. Force the native CNPC
+            // body to that same yaw even for a small arc, rather than letting CustomNPCs rotate
+            // only the head while the gun, YSM model and flashlight remain visually behind.
+            NpcGunAimLock.alignForShot(npc, target);
+        }
         double distance = npc.distanceTo(target);
         double desired = effectiveRange();
-        boolean canSee = npc.getSensing().hasLineOfSight(target);
+        boolean vanillaCanSee = npc.getSensing().hasLineOfSight(target);
+        boolean watchHasClearShot = command.watching()
+                && DominionCommandBridge.watchHasClearShot(npc, target, vanillaCanSee);
+        boolean canSee = CommandGunTactics.effectiveLineOfSight(
+                command.watching(), vanillaCanSee, watchHasClearShot);
         boolean retreating = false;
         String maneuverName = npc.isPassenger() ? "PASSENGER" : "UNDECIDED";
 
@@ -164,9 +176,13 @@ public final class YsmTaczGunGoal extends Goal {
                     (float) (clockwise ? YsmTaczConfig.SIDEWAYS_SPEED.get() : -YsmTaczConfig.SIDEWAYS_SPEED.get()));
         }
 
-        npc.setYRot(Mth.rotateIfNecessary(npc.getYRot(), npc.yHeadRot, 30.0F));
         traceRetreat(target, retreating, maneuverName, distance, desired, canSee, command);
-        if (CommandGunTactics.canFire(command.prone(), canSee, distance, desired) && --actionCooldown <= 0) {
+        boolean canFire = command.watching()
+                ? canSee
+                : CommandGunTactics.canFire(command.prone(), canSee, distance, desired);
+        traceWatchFireGate(command, target, desired, vanillaCanSee, watchHasClearShot, canFire,
+                canFire ? "READY" : "NO_CLEAR_SHOT");
+        if (canFire && --actionCooldown <= 0) {
             try {
                 // TaCZ rejects a fire request while sprinting.  A command may have just
                 // crossed the firing boundary, so clear the replicated sprint state before
@@ -174,6 +190,11 @@ public final class YsmTaczGunGoal extends Goal {
                 if (command.active()) npc.setSprinting(false);
                 GunCompatFacade.Action action = facade.operate(npc, target);
                 actionCooldown = action.delayTicks();
+                if (command.watching()) {
+                    CustomNpcsYsmCompat.LOGGER.info(
+                            "[TACZ-WATCH-FIRE] npcId={} targetId={} actionFired={} nextCooldown={}",
+                            npc.getId(), target.getId(), action.fired(), actionCooldown);
+                }
             } catch (Throwable error) {
                 GunCompat.reportRuntimeError(error);
                 actionCooldown = 100;
@@ -215,13 +236,20 @@ public final class YsmTaczGunGoal extends Goal {
         return Double.isFinite(value) ? String.format(java.util.Locale.ROOT, "%.3f", value) : "nan";
     }
 
+    /** Emits one bounded record per second for the only goal allowed to fire during watch. */
+    private void traceWatchFireGate(DominionCommandBridge.Snapshot command, LivingEntity target,
+                                    double range, boolean vanillaCanSee, boolean watchHasClearShot,
+                                    boolean canFire, String gate) {
+        if (!command.watching() || npc.tickCount % 20 != 0) return;
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[TACZ-WATCH-GOAL] npcId={} targetId={} range={} distance={} vanillaCanSee={} watchClearShot={} canFire={} cooldown={} gate={}",
+                npc.getId(), target.getId(), decimal(range), decimal(npc.distanceTo(target)), vanillaCanSee,
+                watchHasClearShot, canFire,
+                actionCooldown, gate);
+    }
+
     private void faceTargetWhileRetreating(LivingEntity target) {
-        double dx = target.getX() - npc.getX();
-        double dz = target.getZ() - npc.getZ();
-        float targetYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        npc.setYRot(targetYaw);
-        npc.yBodyRot = targetYaw;
-        npc.yHeadRot = targetYaw;
+        NpcGunAimLock.alignForShot(npc, target);
     }
 
     private LivingEntity target(DominionCommandBridge.Snapshot command) {

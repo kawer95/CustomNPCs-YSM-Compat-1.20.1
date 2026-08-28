@@ -7,19 +7,18 @@ import noppes.npcs.entity.EntityNPCInterface;
 import java.util.EnumSet;
 
 /**
- * Fires an explicitly commanded TaCZ weapon while a CustomNPC is prone.
+ * Owns firing for a standing Dominion watch order.
  *
- * <p>Dominion deliberately disables the NPC's {@link Flag#MOVE} control while prone so
- * native pathfinding cannot make a crawling unit stand up. The regular gun goal owns MOVE
- * and LOOK and therefore cannot be relied upon in that state. This goal owns LOOK only:
- * it keeps the NPC stationary, faces the ordered target, and lets the TaCZ adapter retain
- * its normal draw, ADS, reload, ammunition, and firing cadence.</p>
+ * <p>CustomNPCs has native MOVE+LOOK goals which can keep the general gun goal from ever
+ * being scheduled while a unit is stationary. This goal intentionally owns LOOK only and is
+ * installed at watch priority, just like the prone shooter. It therefore cannot create a
+ * movement intent, but it always gets a chance to aim and operate a TaCZ weapon.</p>
  */
-public final class YsmTaczProneGunGoal extends Goal {
+public final class YsmTaczWatchGunGoal extends Goal {
     private final EntityNPCInterface npc;
     private int actionCooldown;
 
-    public YsmTaczProneGunGoal(EntityNPCInterface npc) {
+    public YsmTaczWatchGunGoal(EntityNPCInterface npc) {
         this.npc = npc;
         setFlags(EnumSet.of(Flag.LOOK));
     }
@@ -42,8 +41,7 @@ public final class YsmTaczProneGunGoal extends Goal {
     @Override
     public void start() {
         actionCooldown = 0;
-        CustomNpcsYsmCompat.LOGGER.info(
-                "[TACZ-PRONE-GOAL] npcId={} entered look-only prone firing goal", npc.getId());
+        CustomNpcsYsmCompat.LOGGER.info("[TACZ-WATCH-GOAL] npcId={} entered standing watch shooter", npc.getId());
     }
 
     @Override
@@ -53,12 +51,15 @@ public final class YsmTaczProneGunGoal extends Goal {
         GunCompatFacade facade = GunCompat.facade();
         if (target == null || facade == null) return;
 
-        // Hard invariants for a prone command: no navigation or strafing, only aim and fire.
+        // Watch owns the unit's position. Aim and weapon state are the only permitted output.
         npc.setSprinting(false);
         npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
+        if (npc.getTarget() != target) npc.setTarget(target);
+
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
-        if (NpcGunTargetReaction.blocks(npc, target, settings, command.directAttackOrder())) {
+        if (NpcGunTargetReaction.blocks(npc, target, settings, false)) {
+            trace(target, false, false, false, "TARGET_REACTION");
             stopGun(facade);
             return;
         }
@@ -67,24 +68,15 @@ public final class YsmTaczProneGunGoal extends Goal {
         NpcGunAimLock.track(npc, target);
 
         boolean vanillaCanSee = npc.getSensing().hasLineOfSight(target);
-        boolean watchHasClearShot = command.watching()
-                && DominionCommandBridge.watchHasClearShot(npc, target, vanillaCanSee);
-        boolean canSee = CommandGunTactics.effectiveLineOfSight(
-                command.watching(), vanillaCanSee, watchHasClearShot);
-        if (npc.tickCount % 20 == 0) {
-            CustomNpcsYsmCompat.LOGGER.info(
-                    "[TACZ-PRONE-GOAL] npcId={} targetId={} watching={} vanillaCanSee={} effectiveCanSee={} cooldown={} distance={}",
-                    npc.getId(), target.getId(), command.watching(), vanillaCanSee, canSee, actionCooldown,
-                    String.format(java.util.Locale.ROOT, "%.2f", npc.distanceTo(target)));
-        }
-        // A prone ordered attack intentionally ignores the normal ranged-AI distance cap,
-        // but still needs a real line of sight so shots cannot pass through terrain.
-        if (!canSee || --actionCooldown > 0) return;
+        boolean watchHasClearShot = DominionCommandBridge.watchHasClearShot(npc, target, vanillaCanSee);
+        boolean canFire = CommandGunTactics.effectiveLineOfSight(true, vanillaCanSee, watchHasClearShot);
+        trace(target, vanillaCanSee, watchHasClearShot, canFire, canFire ? "READY" : "NO_CLEAR_SHOT");
+        if (!canFire || --actionCooldown > 0) return;
         try {
             GunCompatFacade.Action action = facade.operate(npc, target);
             actionCooldown = action.delayTicks();
             CustomNpcsYsmCompat.LOGGER.info(
-                    "[TACZ-PRONE-GOAL] npcId={} targetId={} actionFired={} nextCooldown={}",
+                    "[TACZ-WATCH-FIRE] npcId={} targetId={} actionFired={} nextCooldown={}",
                     npc.getId(), target.getId(), action.fired(), actionCooldown);
         } catch (Throwable error) {
             GunCompat.reportRuntimeError(error);
@@ -99,14 +91,26 @@ public final class YsmTaczProneGunGoal extends Goal {
         npc.getMoveControl().strafe(0.0F, 0.0F);
         GunCompatFacade facade = GunCompat.facade();
         if (facade != null) stopGun(facade);
-        CustomNpcsYsmCompat.LOGGER.info(
-                "[TACZ-PRONE-GOAL] npcId={} left look-only prone firing goal", npc.getId());
+        CustomNpcsYsmCompat.LOGGER.info("[TACZ-WATCH-GOAL] npcId={} left standing watch shooter", npc.getId());
     }
 
     private LivingEntity validTarget(DominionCommandBridge.Snapshot command) {
-        if (!command.prone() || !command.commandedAttack() || !GunCompat.active(npc)) return null;
+        if (!command.watching() || command.prone() || !command.commandedAttack() || !GunCompat.active(npc)) {
+            return null;
+        }
         LivingEntity target = command.attackTarget();
         return target != null && target.isAlive() && target != npc ? target : null;
+    }
+
+    private void trace(LivingEntity target, boolean vanillaCanSee, boolean watchHasClearShot,
+                       boolean canFire, String gate) {
+        if (npc.tickCount % 20 != 0) return;
+        double range = DominionCommandBridge.watchRange(npc, 64.0D);
+        CustomNpcsYsmCompat.LOGGER.info(
+                "[TACZ-WATCH-GOAL] npcId={} targetId={} range={} distance={} vanillaCanSee={} watchClearShot={} canFire={} cooldown={} gate={}",
+                npc.getId(), target.getId(), decimal(range), decimal(npc.distanceTo(target)), vanillaCanSee,
+                watchHasClearShot, canFire,
+                actionCooldown, gate);
     }
 
     private void stopGun(GunCompatFacade facade) {
@@ -115,5 +119,9 @@ public final class YsmTaczProneGunGoal extends Goal {
         } catch (Throwable error) {
             GunCompat.reportRuntimeError(error);
         }
+    }
+
+    private static String decimal(double value) {
+        return Double.isFinite(value) ? String.format(java.util.Locale.ROOT, "%.3f", value) : "nan";
     }
 }

@@ -2,6 +2,7 @@ package com.arxyt.customnpcsysmcompat.tacz;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
 import com.arxyt.customnpcsysmcompat.DominionCommandBridge;
+import com.arxyt.customnpcsysmcompat.DominionCombatBalance;
 import com.arxyt.customnpcsysmcompat.GunCompatFacade;
 import com.arxyt.customnpcsysmcompat.GunCompat;
 import com.arxyt.customnpcsysmcompat.NpcCrawlState;
@@ -115,7 +116,13 @@ public final class Tacz115Compat implements GunCompatFacade {
         int accuracyRoll = shooter.getRandom().nextInt(100);
         double magnitudeRoll = shooter.getRandom().nextDouble();
         boolean positiveError = shooter.getRandom().nextBoolean();
-        float aimError = aimErrorDegrees(shooter.stats.ranged.getAccuracy(), target.getBbWidth(),
+        DominionCombatBalance.Settings balance = DominionCombatBalance.settings();
+        boolean machineGun = GunTabType.MG.name().equalsIgnoreCase(index.getType());
+        boolean sniperRifle = GunTabType.SNIPER.name().equalsIgnoreCase(index.getType());
+        int effectiveAccuracy = effectiveAccuracy(shooter.stats.ranged.getAccuracy(),
+                balance.available() && balance.customNpcStandingMachineGunAccuracyPenalty(), machineGun,
+                sniperRifle, operator.getDataHolder().isCrawling);
+        float aimError = aimErrorDegrees(effectiveAccuracy, target.getBbWidth(),
                 Math.sqrt(x * x + z * z), accuracyRoll, magnitudeRoll, positiveError);
         float adjustedYaw = yaw + aimError;
         ShootResult result = operator.shoot(() -> pitch, () -> adjustedYaw);
@@ -294,6 +301,18 @@ public final class Tacz115Compat implements GunCompatFacade {
                 shooter.getId(), shooter.tickCount, result, previous, gun.getGunId(gunStack),
                 gun.getCurrentAmmoCount(gunStack), operator.needCheckAmmo(), compatible[0],
                 operator.getSynReloadState().getStateType(), inventory);
+    }
+
+    /** Weapon/stance multipliers change only exact-lock probability; TaCZ spread remains untouched. */
+    static int effectiveAccuracy(int baseAccuracy, boolean penaltyEnabled, boolean machineGun,
+                                 boolean sniperRifle, boolean crawling) {
+        int safeAccuracy = Math.max(0, Math.min(100, baseAccuracy));
+        if (sniperRifle) {
+            float multiplier = crawling ? 1.35F : 0.80F;
+            return Math.max(0, Math.min(100, Math.round(safeAccuracy * multiplier)));
+        }
+        if (!penaltyEnabled || !machineGun || crawling) return safeAccuracy;
+        return Math.max(0, Math.min(100, Math.round(safeAccuracy * 0.5F)));
     }
 
     /**

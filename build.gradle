@@ -44,7 +44,7 @@ dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     // ForgeGradle remaps the production jars for userdev runs; normal output still does not bundle them.
-    implementation fg.deobf('local:[自定义NPC]CustomNPCs-1.20.1-GBPort-Unofficial:1.20.1.20260227')
+    implementation fg.deobf('local:[自定义NPC]CustomNPCs-1.20.1-GBPort-Unofficial:1.20.1.20260711')
     implementation fg.deobf('local:[野山梅]ysm:2.6.5-forge+mc1.20.1-release')
     compileOnly fg.deobf('curse.maven:timeless-and-classics-zero-1028108:6518539-sources-6518544')
     if (!project.hasProperty('dominionsword_jar')) {

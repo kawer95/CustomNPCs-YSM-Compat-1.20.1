@@ -3,6 +3,8 @@ package com.arxyt.customnpcsysmcompat;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class CommandGunTacticsTest {
     @Test
@@ -50,5 +52,13 @@ final class CommandGunTacticsTest {
         assertEquals(true, CommandGunTactics.canFire(true, true, 80.0D, 32.0D));
         assertEquals(false, CommandGunTactics.canFire(true, false, 4.0D, 32.0D));
         assertEquals(false, CommandGunTactics.canFire(false, true, 80.0D, 32.0D));
+    }
+
+    @Test
+    void watchUsesItsMultiPointRayResultForEveryFiringGoal() {
+        assertTrue(CommandGunTactics.effectiveLineOfSight(true, false, true));
+        assertFalse(CommandGunTactics.effectiveLineOfSight(true, true, false));
+        assertTrue(CommandGunTactics.effectiveLineOfSight(false, true, false));
+        assertFalse(CommandGunTactics.effectiveLineOfSight(false, false, true));
     }
 }

@@ -35,6 +35,16 @@ public final class CommandGunTactics {
         return canSee && (prone || distance <= Math.max(1.0D, configuredRange));
     }
 
+    /**
+     * A Dominion watch scan validates several sample rays against the target collision box.
+     * While watching, that authoritative result must be used by every CNPC firing goal;
+     * vanilla's single eye-to-eye sight cache can reject an otherwise valid gun shot.
+     */
+    public static boolean effectiveLineOfSight(boolean watching, boolean vanillaCanSee,
+                                                boolean watchHasClearShot) {
+        return watching ? watchHasClearShot : vanillaCanSee;
+    }
+
     public enum Maneuver {
         PURSUE,
         RETREAT,

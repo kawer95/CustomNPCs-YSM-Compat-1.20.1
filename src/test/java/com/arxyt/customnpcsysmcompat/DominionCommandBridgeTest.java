@@ -6,13 +6,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Verifies that only a genuine Dominion attack queue is allowed to hold TaCZ ADS. */
+/** Verifies that Dominion attack and watch queues may hold TaCZ ADS between targets. */
 final class DominionCommandBridgeTest {
     @Test
-    void onlyNonEmptyAttackOrdersAreQueuedAttacks() {
+    void onlyNonEmptyAttackOrWatchOrdersAreQueuedAttacks() {
         assertTrue(DominionCommandBridge.hasQueuedAttack("attack", 1));
         assertTrue(DominionCommandBridge.hasQueuedAttack("attack", 5));
+        assertTrue(DominionCommandBridge.hasQueuedAttack("watch", 1));
         assertFalse(DominionCommandBridge.hasQueuedAttack("attack", 0));
+        assertFalse(DominionCommandBridge.hasQueuedAttack("watch", 0));
         assertFalse(DominionCommandBridge.hasQueuedAttack("hold", 2));
         assertFalse(DominionCommandBridge.hasQueuedAttack("", 2));
     }

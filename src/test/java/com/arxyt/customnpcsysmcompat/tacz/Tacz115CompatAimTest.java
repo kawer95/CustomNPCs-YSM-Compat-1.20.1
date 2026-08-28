@@ -8,6 +8,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class Tacz115CompatAimTest {
     @Test
+    void standingMachineGunPenaltyReducesExactLockProbabilityByFiftyPercent() {
+        assertEquals(40, Tacz115Compat.effectiveAccuracy(80, true, true, false, false));
+        assertEquals(38, Tacz115Compat.effectiveAccuracy(75, true, true, false, false));
+        assertEquals(80, Tacz115Compat.effectiveAccuracy(80, false, true, false, false));
+        assertEquals(80, Tacz115Compat.effectiveAccuracy(80, true, false, false, false));
+        assertEquals(80, Tacz115Compat.effectiveAccuracy(80, true, true, false, true));
+    }
+
+    @Test
+    void sniperAccuracyUsesStandingAndCrawlingMultipliers() {
+        assertEquals(60, Tacz115Compat.effectiveAccuracy(75, true, false, true, false));
+        assertEquals(100, Tacz115Compat.effectiveAccuracy(75, true, false, true, true));
+        assertEquals(68, Tacz115Compat.effectiveAccuracy(50, true, false, true, true));
+    }
+
+    @Test
     void perfectAccuracyAlwaysUsesTheExactTargetAim() {
         assertEquals(0.0F, Tacz115Compat.aimErrorDegrees(100, 0.6D, 12.0D, 99, 1.0D, true));
     }

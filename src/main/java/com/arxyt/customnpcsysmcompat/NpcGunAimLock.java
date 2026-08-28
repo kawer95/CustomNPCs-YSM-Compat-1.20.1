@@ -25,17 +25,38 @@ public final class NpcGunAimLock {
 
     /** Updates the lock from a live commanded target. Safe to call from a gun goal. */
     public static void track(EntityNPCInterface npc, LivingEntity target) {
-        if (npc == null || target == null || !target.isAlive()) return;
-        double dx = target.getX() - npc.getX();
-        double dz = target.getZ() - npc.getZ();
-        if (dx * dx + dz * dz < 1.0E-8D) return;
-        float yaw = (float) -Math.toDegrees(Math.atan2(dx, dz));
+        float yaw = targetYaw(npc, target);
+        if (!Float.isFinite(yaw)) return;
         // This is deliberately the CustomNPCs-native forced look state, not just a
         // one-tick LookControl request. EntityAILook then stops restoring DataAI.orientation
         // between shots, which makes the target-facing body direction authoritative.
         if (npc.lookAi != null) npc.lookAi.rotate(target);
         LAST_COMMAND_AIM.put(npc, new AimState(target, yaw));
         apply(npc, yaw);
+    }
+
+    /**
+     * Aligns every replicated orientation field immediately before a shot without creating a
+     * command-history lock. Native CNPC gun targets use this path: TaCZ receives its own exact
+     * yaw supplier, so merely rotating the head left the model body and client-side flashlight
+     * facing behind the bullet whenever CustomNPCs elected not to turn the body for a small arc.
+     */
+    public static void alignForShot(EntityNPCInterface npc, LivingEntity target) {
+        float yaw = targetYaw(npc, target);
+        if (Float.isFinite(yaw)) apply(npc, yaw);
+    }
+
+    /** Pure target-yaw conversion shared by command locks and native firing alignment. */
+    static float targetYaw(double dx, double dz) {
+        if (!Double.isFinite(dx) || !Double.isFinite(dz) || dx * dx + dz * dz < 1.0E-8D) {
+            return Float.NaN;
+        }
+        return (float) -Math.toDegrees(Math.atan2(dx, dz));
+    }
+
+    private static float targetYaw(EntityNPCInterface npc, LivingEntity target) {
+        if (npc == null || target == null || !target.isAlive()) return Float.NaN;
+        return targetYaw(target.getX() - npc.getX(), target.getZ() - npc.getZ());
     }
 
     /**
