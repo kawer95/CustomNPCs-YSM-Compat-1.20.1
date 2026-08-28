@@ -29,6 +29,7 @@ public final class DominionCommandBridge {
         try {
             ClassLoader loader = DominionCommandBridge.class.getClassLoader();
             Class<?> api = Class.forName("com.arxyt.dominionsword.api.DominionControlApi", false, loader);
+            Class<?> reloadApi = optionalClass("com.arxyt.dominionsword.api.DominionTaczReloadApi", loader);
             Class<?> view = Class.forName("com.arxyt.dominionsword.api.DominionUnitCommandView", false, loader);
             MethodHandles.Lookup lookup = MethodHandles.publicLookup();
             access = new Access(
@@ -43,7 +44,8 @@ public final class DominionCommandBridge {
                     unreflect(lookup, view.getMethod("attackTarget")),
                     optionalUnreflect(lookup, api, "commandMovementSpeed", Mob.class),
                     optionalUnreflect(lookup, api, "watchRange", Mob.class, int.class),
-                    optionalUnreflect(lookup, api, "watchHasClearShot", Mob.class, LivingEntity.class));
+                    optionalUnreflect(lookup, api, "watchHasClearShot", Mob.class, LivingEntity.class),
+                    optionalUnreflect(lookup, reloadApi, "isReloadActive", Mob.class));
             CustomNpcsYsmCompat.LOGGER.info("Dominion Sword command coordination enabled");
         } catch (ReflectiveOperationException | LinkageError error) {
             report(error);
@@ -158,6 +160,22 @@ public final class DominionCommandBridge {
     }
 
     /**
+     * The shared Dominion reload service owns all requests and timers. This optional query only
+     * lets the CNPC gun goal yield while that service has control of the native TACZ state.
+     */
+    public static boolean isReloadActive(Mob unit) {
+        Access current = access;
+        if (current == null || current.reloadActive == null || unit == null || unit.level().isClientSide) return false;
+        try {
+            Object value = current.reloadActive.invoke(unit);
+            return value instanceof Boolean active && active;
+        } catch (Throwable error) {
+            report(error);
+            return false;
+        }
+    }
+
+    /**
      * Dominion uses a persistent fallback UUID only for its direct one-target attack command.
      * Ctrl/area attacks instead write an attack queue and deliberately omit this field.
      */
@@ -174,9 +192,18 @@ public final class DominionCommandBridge {
     private static MethodHandle optionalUnreflect(MethodHandles.Lookup lookup, Class<?> owner, String method,
                                                   Class<?>... parameterTypes)
             throws IllegalAccessException {
+        if (owner == null) return null;
         try {
             return unreflect(lookup, owner.getMethod(method, parameterTypes));
         } catch (NoSuchMethodException ignored) {
+            return null;
+        }
+    }
+
+    private static Class<?> optionalClass(String name, ClassLoader loader) {
+        try {
+            return Class.forName(name, false, loader);
+        } catch (ClassNotFoundException | LinkageError ignored) {
             return null;
         }
     }
@@ -221,6 +248,6 @@ public final class DominionCommandBridge {
                            MethodHandle prone, MethodHandle watching,
                            MethodHandle attackTarget,
                            MethodHandle movementSpeed, MethodHandle watchRange,
-                           MethodHandle watchHasClearShot) {
+                           MethodHandle watchHasClearShot, MethodHandle reloadActive) {
     }
 }

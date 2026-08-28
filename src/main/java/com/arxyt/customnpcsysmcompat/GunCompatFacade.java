@@ -48,20 +48,6 @@ public interface GunCompatFacade {
     default void syncCrawlState(EntityNPCInterface shooter) {
     }
 
-    /** Queues one genuine optional-gun-system reload; implementations must not edit ammunition NBT. */
-    default boolean requestReload(EntityNPCInterface shooter) {
-        return false;
-    }
-
-    /** Advances queued reloads and applies the adapter's own idle auto-reload policy. */
-    default void tickReload(EntityNPCInterface shooter) {
-    }
-
-    /** True while a manual reload is intentionally blocking this NPC's firing goal. */
-    default boolean reloadRequested(EntityNPCInterface shooter) {
-        return false;
-    }
-
     default void syncClientState(LivingEntity source, LivingEntity renderProxy) {
     }
 }

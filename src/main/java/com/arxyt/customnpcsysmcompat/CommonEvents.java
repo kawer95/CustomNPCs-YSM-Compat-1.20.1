@@ -13,7 +13,6 @@ public final class CommonEvents {
             // crawl validator runs at that tick's tail, so this makes the CNPC-native
             // crawl action available to TaCZ before it updates pose and gun state.
             GunCompat.syncCrawlState(npc);
-            GunCompat.tickReload(npc);
             DelayedMeleeAttack.tick(npc);
         }
     }

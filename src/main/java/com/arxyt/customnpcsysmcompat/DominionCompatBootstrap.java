@@ -1,7 +1,7 @@
 package com.arxyt.customnpcsysmcompat;
 
 import com.arxyt.dominionsword.api.DominionControlApi;
-import com.arxyt.dominionsword.api.DominionSkills;
+import com.arxyt.dominionsword.api.DominionTaczReloadApi;
 
 /** Loaded reflectively only after Forge confirms that Dominion Sword is present. */
 public final class DominionCompatBootstrap {
@@ -12,7 +12,10 @@ public final class DominionCompatBootstrap {
         DominionCommandBridge.load();
         DominionCombatBalance.load();
         DominionControlApi.registerAdapter(new DominionYsmNpcAdapter());
-        DominionSkills.register(new DominionWatchSkillProvider());
-        DominionSkills.register(new DominionReloadSkillProvider());
+        try {
+            DominionTaczReloadApi.registerAdapter(new DominionYsmNpcReloadAdapter());
+        } catch (LinkageError error) {
+            CustomNpcsYsmCompat.LOGGER.warn("Dominion Sword lacks the shared TACZ reload API; CNPC reload integration is disabled", error);
+        }
     }
 }

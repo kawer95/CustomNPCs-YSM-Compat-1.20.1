@@ -90,7 +90,7 @@ public final class YsmTaczGunGoal extends Goal {
         }
         // A player explicitly pressed the reload skill. Do not let the next automatic-gun shot
         // reset TaCZ's shoot cooldown before its native reload request can begin.
-        if (GunCompat.reloadRequested(npc)) {
+        if (DominionCommandBridge.isReloadActive(npc)) {
             if (command.active()) npc.setSprinting(false);
             npc.getNavigation().stop();
             npc.getMoveControl().strafe(0.0F, 0.0F);
