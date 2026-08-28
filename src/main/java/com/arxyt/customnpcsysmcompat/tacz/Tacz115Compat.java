@@ -6,8 +6,10 @@ import com.arxyt.customnpcsysmcompat.DominionCombatBalance;
 import com.arxyt.customnpcsysmcompat.GunCompatFacade;
 import com.arxyt.customnpcsysmcompat.GunCompat;
 import com.arxyt.customnpcsysmcompat.NpcCrawlState;
+import com.arxyt.customnpcsysmcompat.YsmTaczConfig;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
+import com.tacz.guns.api.entity.ReloadState;
 import com.tacz.guns.api.entity.ShootResult;
 import com.tacz.guns.api.item.GunTabType;
 import com.tacz.guns.api.item.IAmmo;
@@ -17,6 +19,8 @@ import com.tacz.guns.api.item.gun.FireMode;
 import com.tacz.guns.resource.index.CommonGunIndex;
 import com.tacz.guns.entity.sync.ModSyncedEntityData;
 import com.tacz.guns.resource.pojo.data.gun.GunData;
+import com.tacz.guns.util.AttachmentDataUtils;
+import com.tacz.guns.entity.shooter.ShooterDataHolder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -57,6 +61,9 @@ public final class Tacz115Compat implements GunCompatFacade {
     private final Map<EntityNPCInterface, Integer> lastCrawlStateTraceTick =
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
     private final Map<EntityNPCInterface, Integer> lastProneHitTraceTick =
+            java.util.Collections.synchronizedMap(new WeakHashMap<>());
+    /** Weak live-NPC state; both manual and idle reloads eventually expire without retaining entities. */
+    private final Map<EntityNPCInterface, ReloadTracker> reloadTrackers =
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
 
     public Tacz115Compat() {
@@ -196,6 +203,143 @@ public final class Tacz115Compat implements GunCompatFacade {
     }
 
     @Override
+    public boolean requestReload(EntityNPCInterface shooter) {
+        if (!reloadableGun(shooter)) return false;
+        ReloadTracker tracker = tracker(shooter);
+        tracker.request(false, shooter.tickCount);
+        tickReload(shooter);
+        return true;
+    }
+
+    @Override
+    public void tickReload(EntityNPCInterface shooter) {
+        if (shooter == null || shooter.level().isClientSide || !reloadableGun(shooter)) {
+            if (shooter != null) reloadTrackers.remove(shooter);
+            return;
+        }
+        ReloadTracker tracker = tracker(shooter);
+        boolean combat = hasLiveEnemy(shooter);
+        if (combat) {
+            tracker.noteCombat(shooter.tickCount);
+            // Automatic reloads are deliberately aborted before they become an emergency-combat
+            // liability. A manually pressed reload remains explicit player intent.
+            if (tracker.automatic() && tracker.hasRequest()) {
+                cancelAutomaticReload(shooter, tracker);
+                tracker.clear();
+                return;
+            }
+        }
+        if (!tracker.hasRequest() && !combat
+                && Math.floorMod(shooter.tickCount + shooter.getId(), TaczReloadPolicy.TICKS_PER_SECOND) == 0) {
+            AmmoSnapshot ammo = ammoSnapshot(shooter.getMainHandItem());
+            if (ammo != null && TaczReloadPolicy.shouldAutoReload(ammo.currentAmmo(), ammo.capacity(),
+                    Math.max(0L, (long) shooter.tickCount - tracker.lastCombatTick()), configuredReloadSchedule())) {
+                tracker.request(true, shooter.tickCount);
+            }
+        }
+        if (!tracker.hasRequest()) return;
+        if (!advanceReload(shooter, tracker)) tracker.clear();
+    }
+
+    @Override
+    public boolean reloadRequested(EntityNPCInterface shooter) {
+        ReloadTracker tracker = shooter == null ? null : reloadTrackers.get(shooter);
+        return tracker != null && tracker.hasRequest();
+    }
+
+    private ReloadTracker tracker(EntityNPCInterface shooter) {
+        return reloadTrackers.computeIfAbsent(shooter, ignored -> new ReloadTracker(shooter.tickCount));
+    }
+
+    private static boolean reloadableGun(EntityNPCInterface shooter) {
+        if (shooter == null) return false;
+        IGun gun = IGun.getIGunOrNull(shooter.getMainHandItem());
+        return gun != null && !gun.useInventoryAmmo(shooter.getMainHandItem());
+    }
+
+    private static boolean hasLiveEnemy(EntityNPCInterface shooter) {
+        LivingEntity nativeTarget = shooter.getTarget();
+        if (nativeTarget != null && nativeTarget.isAlive()) return true;
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(shooter);
+        return command.attackTarget() != null && command.attackTarget().isAlive()
+                || DominionCommandBridge.hasQueuedAttack(shooter);
+    }
+
+    private static TaczReloadPolicy.Schedule configuredReloadSchedule() {
+        TaczReloadPolicy.Schedule schedule = TaczReloadPolicy.schedule(YsmTaczConfig.AUTO_RELOAD_BELOW_HALF_SECONDS.get(),
+                YsmTaczConfig.AUTO_RELOAD_BELOW_TWO_THIRDS_SECONDS.get(),
+                YsmTaczConfig.AUTO_RELOAD_NON_FULL_SECONDS.get());
+        correctConfig(YsmTaczConfig.AUTO_RELOAD_BELOW_TWO_THIRDS_SECONDS, schedule.belowTwoThirdsSeconds());
+        correctConfig(YsmTaczConfig.AUTO_RELOAD_NON_FULL_SECONDS, schedule.nonFullSeconds());
+        return schedule;
+    }
+
+    /** Forge range widgets have no cross-field predicate; save the server-validated correction. */
+    private static void correctConfig(net.minecraftforge.common.ForgeConfigSpec.IntValue value, int expected) {
+        try {
+            if (value.get() != expected) {
+                value.set(expected);
+                value.save();
+                CustomNpcsYsmCompat.LOGGER.warn("Corrected non-ascending CNPC TaCZ auto-reload delay to {} seconds", expected);
+            }
+        } catch (RuntimeException ignored) {
+            // A read-only configuration still uses the normalized in-memory schedule.
+        }
+    }
+
+    private static AmmoSnapshot ammoSnapshot(ItemStack gunStack) {
+        IGun gun = IGun.getIGunOrNull(gunStack);
+        Optional<CommonGunIndex> index = gunIndex(gunStack);
+        if (gun == null || index.isEmpty()) return null;
+        int capacity = AttachmentDataUtils.getAmmoCountWithAttachment(gunStack, index.get().getGunData());
+        return capacity > 0 ? new AmmoSnapshot(Math.max(0, gun.getCurrentAmmoCount(gunStack)), capacity) : null;
+    }
+
+    /** Advances only TaCZ's documented operator state machine; magazine NBT remains untouched. */
+    private static boolean advanceReload(EntityNPCInterface shooter, ReloadTracker tracker) {
+        try {
+            IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
+            if (isReloading(operator)) {
+                tracker.markStarted();
+                return true;
+            }
+            if (tracker.started()) return false;
+            ItemStack gun = shooter.getMainHandItem();
+            ShooterDataHolder holder = operator.getDataHolder();
+            ItemStack held = holder.currentGunItem == null ? ItemStack.EMPTY : holder.currentGunItem.get();
+            if (held.isEmpty() || held.getItem() != gun.getItem()) {
+                operator.draw(shooter::getMainHandItem);
+                return true;
+            }
+            if (operator.getSynDrawCoolDown() > 0L || operator.getSynShootCoolDown() > 0L
+                    || operator.getSynIsBolting()) return true;
+            operator.reload();
+            if (isReloading(operator)) {
+                tracker.markStarted();
+                return true;
+            }
+            return shooter.tickCount - tracker.requestedAtTick() < TaczReloadPolicy.TICKS_PER_SECOND * 5;
+        } catch (RuntimeException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    private static void cancelAutomaticReload(EntityNPCInterface shooter, ReloadTracker tracker) {
+        if (!tracker.started()) return;
+        try {
+            IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
+            if (isReloading(operator)) operator.cancelReload();
+        } catch (RuntimeException | LinkageError ignored) {
+            // If TaCZ declines cancellation, its own state machine safely finishes the reload.
+        }
+    }
+
+    private static boolean isReloading(IGunOperator operator) {
+        ReloadState state = operator.getSynReloadState();
+        return state != null && state.getStateType().isReloading();
+    }
+
+    @Override
     public void syncClientState(LivingEntity source, LivingEntity renderProxy) {
         if (!isGun(source.getMainHandItem())) return;
         ModSyncedEntityData.SHOOT_COOL_DOWN_KEY.setValue(renderProxy,
@@ -225,6 +369,64 @@ public final class Tacz115Compat implements GunCompatFacade {
 
     private static int seconds(float seconds) {
         return Math.max(1, Math.round(seconds * 20.0F));
+    }
+
+    private record AmmoSnapshot(int currentAmmo, int capacity) {
+    }
+
+    /** State is accessed only on the server tick thread through a weak entity-keyed map. */
+    private static final class ReloadTracker {
+        private long lastCombatTick;
+        private int requestedAtTick;
+        private boolean requested;
+        private boolean automatic;
+        private boolean started;
+
+        private ReloadTracker(long now) {
+            lastCombatTick = now;
+        }
+
+        private void noteCombat(long now) {
+            lastCombatTick = now;
+        }
+
+        private long lastCombatTick() {
+            return lastCombatTick;
+        }
+
+        private void request(boolean automatic, int tick) {
+            requestedAtTick = tick;
+            requested = true;
+            this.automatic = automatic;
+            started = false;
+        }
+
+        private boolean hasRequest() {
+            return requested;
+        }
+
+        private boolean automatic() {
+            return automatic;
+        }
+
+        private int requestedAtTick() {
+            return requestedAtTick;
+        }
+
+        private boolean started() {
+            return started;
+        }
+
+        private void markStarted() {
+            started = true;
+        }
+
+        private void clear() {
+            requestedAtTick = 0;
+            requested = false;
+            automatic = false;
+            started = false;
+        }
     }
 
     private static int successDelay(IGun gun, ItemStack stack, EntityNPCInterface shooter) {

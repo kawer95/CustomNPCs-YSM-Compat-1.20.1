@@ -80,6 +80,40 @@ public final class GunCompat {
         }
     }
 
+    /** Requests one real TaCZ reload and lets the adapter wait out draw/shoot cooldowns safely. */
+    public static boolean requestReload(EntityNPCInterface npc) {
+        GunCompatFacade current = facade;
+        if (current == null || !active(npc)) return false;
+        try {
+            return current.requestReload(npc);
+        } catch (Throwable error) {
+            reportRuntimeError(error);
+            return false;
+        }
+    }
+
+    /** Server-side per-NPC reload lifecycle; inactive and non-YSM NPCs are deliberately ignored. */
+    public static void tickReload(EntityNPCInterface npc) {
+        GunCompatFacade current = facade;
+        if (current == null || !active(npc)) return;
+        try {
+            current.tickReload(npc);
+        } catch (Throwable error) {
+            reportRuntimeError(error);
+        }
+    }
+
+    public static boolean reloadRequested(EntityNPCInterface npc) {
+        GunCompatFacade current = facade;
+        if (current == null || !active(npc)) return false;
+        try {
+            return current.reloadRequested(npc);
+        } catch (Throwable error) {
+            reportRuntimeError(error);
+            return false;
+        }
+    }
+
     public static void syncClientState(net.minecraft.world.entity.LivingEntity source,
                                        net.minecraft.world.entity.LivingEntity renderProxy) {
         GunCompatFacade current = facade;

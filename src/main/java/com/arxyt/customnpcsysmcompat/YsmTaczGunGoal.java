@@ -85,9 +85,18 @@ public final class YsmTaczGunGoal extends Goal {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
         LivingEntity target = target(command);
         GunCompatFacade facade = GunCompat.facade();
-        if (target == null || facade == null) {
+        if (facade == null) {
             return;
         }
+        // A player explicitly pressed the reload skill. Do not let the next automatic-gun shot
+        // reset TaCZ's shoot cooldown before its native reload request can begin.
+        if (GunCompat.reloadRequested(npc)) {
+            if (command.active()) npc.setSprinting(false);
+            npc.getNavigation().stop();
+            npc.getMoveControl().strafe(0.0F, 0.0F);
+            return;
+        }
+        if (target == null) return;
         if (command.commandedAttack() && npc.getTarget() != target) npc.setTarget(target);
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
         if (NpcGunTargetReaction.blocks(npc, target, settings, command.directAttackOrder())) {

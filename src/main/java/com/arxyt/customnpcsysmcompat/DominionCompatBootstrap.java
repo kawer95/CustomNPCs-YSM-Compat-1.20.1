@@ -13,5 +13,6 @@ public final class DominionCompatBootstrap {
         DominionCombatBalance.load();
         DominionControlApi.registerAdapter(new DominionYsmNpcAdapter());
         DominionSkills.register(new DominionWatchSkillProvider());
+        DominionSkills.register(new DominionReloadSkillProvider());
     }
 }
