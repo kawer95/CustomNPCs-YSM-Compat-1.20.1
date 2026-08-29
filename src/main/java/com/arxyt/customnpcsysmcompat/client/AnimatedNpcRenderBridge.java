@@ -550,7 +550,15 @@ public final class AnimatedNpcRenderBridge {
         }
         EntityRenderer<?> renderer = Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(npc);
         if (renderer instanceof RenderNPCInterface npcRenderer) {
-            npcRenderer.renderNameTag(npc, npc.getDisplayName(), poseStack, buffers, packedLight);
+            // RenderNPCInterface also emits a nearby chat-bubble pass with DepthTest.ALWAYS.
+            // Keep its normal label/title logic, but scope the call so our narrow mixin drops
+            // that x-ray pass without changing native CustomNPC rendering elsewhere.
+            NpcNameTagRenderContext.begin();
+            try {
+                npcRenderer.renderNameTag(npc, npc.getDisplayName(), poseStack, buffers, packedLight);
+            } finally {
+                NpcNameTagRenderContext.end();
+            }
         }
     }
 
