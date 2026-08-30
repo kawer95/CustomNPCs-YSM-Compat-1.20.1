@@ -9,6 +9,9 @@ public final class NpcMovementTracker {
     private double lastX;
     private double lastZ;
     private boolean moving;
+    private boolean backpedalling;
+    private int movingTicks;
+    private int stoppedTicks;
     private float speed;
     private float movementYaw;
 
@@ -32,9 +35,21 @@ public final class NpcMovementTracker {
         if (distancePerTick > TELEPORT_DISTANCE) {
             moving = false;
             speed = 0.0F;
+            movingTicks = 0;
+            stoppedTicks = 0;
         } else {
-            moving = moving
-                    ? distancePerTick > WALK_STOP_DISTANCE : distancePerTick > WALK_START_DISTANCE;
+            if (distancePerTick > WALK_START_DISTANCE) {
+                movingTicks++;
+                stoppedTicks = 0;
+                if (!moving && movingTicks >= 2) moving = true;
+            } else if (distancePerTick <= WALK_STOP_DISTANCE) {
+                stoppedTicks++;
+                movingTicks = 0;
+                if (moving && stoppedTicks >= 3) moving = false;
+            } else {
+                movingTicks = 0;
+                stoppedTicks = 0;
+            }
             speed = moving ? clamp((float) distancePerTick * 4.0F, 0.1F, 1.0F) : 0.0F;
             if (moving) {
                 movementYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
@@ -48,27 +63,46 @@ public final class NpcMovementTracker {
         lastX = x;
         lastZ = z;
         moving = false;
+        backpedalling = false;
+        movingTicks = 0;
+        stoppedTicks = 0;
         speed = 0.0F;
         movementYaw = 0.0F;
+    }
+
+    /** 20 degree hysteresis prevents packet jitter around the reverse-motion boundary. */
+    public boolean backpedalling(Sample sample, float facingYaw) {
+        if (!sample.walking()) {
+            backpedalling = false;
+            return false;
+        }
+        float difference = Math.abs(wrapDegrees(sample.movementYaw() - facingYaw));
+        if (backpedalling) {
+            if (difference < 90.0F) backpedalling = false;
+        } else if (difference > 110.0F) {
+            backpedalling = true;
+        }
+        return backpedalling;
     }
 
     private static float clamp(float value, float minimum, float maximum) {
         return Math.max(minimum, Math.min(maximum, value));
     }
 
+    private static float wrapDegrees(float degrees) {
+        float wrapped = degrees % 360.0F;
+        if (wrapped >= 180.0F) wrapped -= 360.0F;
+        if (wrapped < -180.0F) wrapped += 360.0F;
+        return wrapped;
+    }
+
     public record Sample(boolean walking, float speed, float movementYaw) {
         public static final Sample STOPPED = new Sample(false, 0.0F, 0.0F);
 
-        /** True when displacement is mostly opposite to the aimed direction. */
+        /** Stateless compatibility helper; new render code uses the tracker's hysteresis. */
         public boolean backpedalling(float facingYaw) {
             return walking && Math.abs(wrapDegrees(movementYaw - facingYaw)) > 100.0F;
         }
 
-        private static float wrapDegrees(float degrees) {
-            float wrapped = degrees % 360.0F;
-            if (wrapped >= 180.0F) wrapped -= 360.0F;
-            if (wrapped < -180.0F) wrapped += 360.0F;
-            return wrapped;
-        }
     }
 }

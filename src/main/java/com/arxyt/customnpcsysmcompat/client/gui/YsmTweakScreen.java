@@ -1,6 +1,5 @@
 package com.arxyt.customnpcsysmcompat.client.gui;
 
-import com.arxyt.customnpcsysmcompat.client.AnimatedNpcRenderBridge;
 import com.arxyt.customnpcsysmcompat.client.Ysm265Adapter;
 import com.arxyt.customnpcsysmcompat.client.YsmTweakForm;
 import com.arxyt.customnpcsysmcompat.client.YsmTweakGroup;
@@ -12,9 +11,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
-import noppes.npcs.entity.EntityNPCInterface;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +26,6 @@ final class YsmTweakScreen extends Screen {
     private static final int FORM_HEIGHT = 24;
 
     private final YsmModelSelectionScreen parent;
-    private final EntityNPCInterface npc;
     private final String modelId;
     private final YsmDisplayData openedData;
     private final List<YsmTweakGroup> groups;
@@ -38,11 +34,10 @@ final class YsmTweakScreen extends Screen {
     private int scrollPixels;
     private int contentHeight;
 
-    YsmTweakScreen(YsmModelSelectionScreen parent, EntityNPCInterface npc, String modelId,
+    YsmTweakScreen(YsmModelSelectionScreen parent, String modelId,
                    YsmDisplayData data) {
         super(Component.translatable("gui.customnpcs_ysm_compat.tweaks.title"));
         this.parent = parent;
-        this.npc = npc;
         this.modelId = modelId;
         this.openedData = data;
         this.working = data;
@@ -187,7 +182,6 @@ final class YsmTweakScreen extends Screen {
     private void setWorking(YsmDisplayData data) {
         working = data;
         parent.replaceWorkingData(data);
-        AnimatedNpcRenderBridge.discardPreview(npc);
     }
 
     private YsmTweakEntry entryFor(String groupId, int formIndex) {
@@ -201,13 +195,18 @@ final class YsmTweakScreen extends Screen {
 
     private void cancelPage() {
         parent.replaceWorkingData(openedData);
-        AnimatedNpcRenderBridge.discardPreview(npc);
         Minecraft.getInstance().setScreen(parent);
     }
 
     @Override
     public void onClose() {
         cancelPage();
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        parent.tickPreview();
     }
 
     @Override
@@ -254,8 +253,8 @@ final class YsmTweakScreen extends Screen {
         int previewBottom = height - 46;
         graphics.drawCenteredString(font, Component.translatable("gui.customnpcs_ysm_compat.tweaks.preview"),
                 previewX, 28, 0xCCCCCC);
-        InventoryScreen.renderEntityInInventoryFollowsMouse(graphics, previewX, previewBottom,
-                Math.max(24, Math.min(55, (height - 88) / 3)), previewX - mouseX, previewBottom - 70 - mouseY, npc);
+        parent.renderPreviewEntity(graphics, previewX, previewBottom,
+                Math.max(24, Math.min(55, (height - 88) / 3)), previewX - mouseX, previewBottom - 70 - mouseY);
     }
 
     private int panelWidth() {

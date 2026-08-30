@@ -7,7 +7,7 @@ public final class NpcAnimationController {
 
     public NpcAnimationFrame update(NpcAnimationInput input) {
         NpcAnimationState next = select(input);
-        if (next != state || input.tick() < lastTick) {
+        if (lastTick == Integer.MIN_VALUE || next != state || input.tick() < lastTick) {
             state = next;
             stateStartedAt = input.tick();
         }

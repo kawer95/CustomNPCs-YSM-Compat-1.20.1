@@ -1,9 +1,8 @@
 package com.arxyt.customnpcsysmcompat.client.gui;
 
-import com.arxyt.customnpcsysmcompat.client.PreviewOverrides;
-import com.arxyt.customnpcsysmcompat.client.AnimatedNpcRenderBridge;
 import com.arxyt.customnpcsysmcompat.client.Ysm265Adapter;
 import com.arxyt.customnpcsysmcompat.client.YsmModelEntry;
+import com.arxyt.customnpcsysmcompat.client.YsmPreviewSession;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import net.minecraft.client.Minecraft;
@@ -11,7 +10,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 import noppes.npcs.client.gui.model.GuiCreationEntities;
 import noppes.npcs.entity.EntityNPCInterface;
@@ -35,6 +33,7 @@ public final class YsmModelSelectionScreen extends Screen {
     private boolean enabled;
     private Map<String, com.arxyt.customnpcsysmcompat.data.YsmTweakProfile> tweakProfiles;
     private int scrollOffset;
+    private final YsmPreviewSession preview;
 
     public YsmModelSelectionScreen(GuiCreationEntities parent, EntityNPCInterface npc) {
         super(Component.translatable("gui.customnpcs_ysm_compat.title"));
@@ -46,6 +45,7 @@ public final class YsmModelSelectionScreen extends Screen {
         this.tweakProfiles = original.tweakProfiles();
         this.allModels = new ArrayList<>(Ysm265Adapter.models());
         this.filteredModels = new ArrayList<>(allModels);
+        this.preview = new YsmPreviewSession(original);
     }
 
     @Override
@@ -65,7 +65,7 @@ public final class YsmModelSelectionScreen extends Screen {
             }
         }).bounds(listWidth + 12, 30, Math.max(150, width - listWidth - 24), 20).build());
         tweaksButton = addRenderableWidget(Button.builder(Component.translatable("gui.customnpcs_ysm_compat.tweaks.open"),
-                        button -> Minecraft.getInstance().setScreen(new YsmTweakScreen(this, npc, selectedId, workingData())))
+                        button -> Minecraft.getInstance().setScreen(new YsmTweakScreen(this, selectedId, workingData())))
                 .bounds(listWidth + 12, 54, Math.max(150, width - listWidth - 24), 20).build());
 
         int bottom = height - 28;
@@ -98,28 +98,25 @@ public final class YsmModelSelectionScreen extends Screen {
                     ? "gui.customnpcs_ysm_compat.tweaks.open"
                     : "gui.customnpcs_ysm_compat.tweaks.empty"));
         }
-        PreviewOverrides.set(npc, workingData());
+        preview.update(workingData());
     }
 
     private void apply() {
         YsmDisplayAccess.set(npc.display, workingData());
-        PreviewOverrides.clear(npc);
-        AnimatedNpcRenderBridge.discardPreview(npc);
+        preview.close();
         parent.save();
         Minecraft.getInstance().setScreen(parent);
     }
 
     private void restore() {
         YsmDisplayAccess.set(npc.display, new YsmDisplayData(false, "", tweakProfiles));
-        PreviewOverrides.clear(npc);
-        AnimatedNpcRenderBridge.discardPreview(npc);
+        preview.close();
         parent.save();
         Minecraft.getInstance().setScreen(parent);
     }
 
     private void cancel() {
-        PreviewOverrides.clear(npc);
-        AnimatedNpcRenderBridge.discardPreview(npc);
+        preview.close();
         Minecraft.getInstance().setScreen(parent);
     }
 
@@ -138,6 +135,12 @@ public final class YsmModelSelectionScreen extends Screen {
     @Override
     public void onClose() {
         cancel();
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        preview.tick();
     }
 
     @Override
@@ -215,9 +218,17 @@ public final class YsmModelSelectionScreen extends Screen {
         }
         graphics.drawCenteredString(font, selectedId.isBlank() ? "-" : selectedId,
                 centerX, 96, 0xCCCCCC);
-        InventoryScreen.renderEntityInInventoryFollowsMouse(graphics, centerX, bottom,
+        renderPreviewEntity(graphics, centerX, bottom,
                 Math.max(24, Math.min(55, (height - 100) / 3)),
-                centerX - mouseX, bottom - 70 - mouseY, npc);
+                centerX - mouseX, bottom - 70 - mouseY);
+    }
+
+    void tickPreview() {
+        preview.tick();
+    }
+
+    void renderPreviewEntity(GuiGraphics graphics, int x, int bottom, int scale, float mouseX, float mouseY) {
+        preview.render(graphics, x, bottom, scale, mouseX, mouseY);
     }
 
     private int visibleRows() {

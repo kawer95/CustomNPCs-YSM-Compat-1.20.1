@@ -15,6 +15,7 @@ public final class CustomNpcsYsmCompat {
 
     public CustomNpcsYsmCompat() {
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, YsmTaczConfig.SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, RenderStabilityConfig.SPEC);
         MinecraftForge.EVENT_BUS.register(new CommonEvents());
         if (ModList.get().isLoaded("tacz")) {
             GunCompat.load();

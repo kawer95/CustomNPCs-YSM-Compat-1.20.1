@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.client;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
+import com.arxyt.customnpcsysmcompat.RenderStabilityConfig;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 
@@ -45,6 +46,7 @@ public final class ProxyVisibilityContext {
 
     public static void tracePipeline(String stage, ResourceLocation texture,
                                      float alpha, RenderType renderType) {
+        if (!RenderStabilityConfig.ENABLED.get()) return;
         int npcId = NPC_ID.get();
         if (npcId < 0) {
             return;
@@ -62,6 +64,7 @@ public final class ProxyVisibilityContext {
 
     public static void traceRenderType(ResourceLocation texture, boolean ysmVisible,
                                        boolean glowing, boolean customLayer, RenderType result) {
+        if (!RenderStabilityConfig.ENABLED.get()) return;
         int npcId = NPC_ID.get();
         if (npcId < 0) {
             return;
