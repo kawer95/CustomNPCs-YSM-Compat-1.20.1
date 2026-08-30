@@ -304,7 +304,14 @@ public final class AnimatedNpcRenderBridge {
         // a real player and can select both standard run and TACZ tac:run controllers.
         player.setSprinting(!preview && !dead && !NpcCrawlState.isCrawling(npc)
                 && movement.walking() && npc.isSprinting());
-        player.setShiftKeyDown(false);
+        // This proxy is render-only and does not receive normal entity ticks.  Merely setting
+        // shift therefore leaves its cached pose at STANDING (and YSM/TaCZ never reaches the
+        // authored crouch controllers).  Set both flags here every render frame.  This changes
+        // only the throwaway RemotePlayer, never the real CNPC's pose or collision box.
+        boolean crouching = !preview && npc.isShiftKeyDown();
+        player.setShiftKeyDown(crouching);
+        player.setPose(NpcCrawlState.isCrawling(npc) ? Pose.SWIMMING
+                : crouching ? Pose.CROUCHING : Pose.STANDING);
         player.setSwimming(false);
         player.stopUsingItem();
 
