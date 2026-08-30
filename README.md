@@ -20,6 +20,10 @@ Both client and server must install the compatibility mod. Every client must ins
 
 Open a CustomNPC's model editor and select **YSM Model**. The page supports search, live preview, apply, cancel, and restoring the original CustomNPC model. Formal YSM `config_forms` model tweaks (`checkbox`, `range`, and `radio`) can be edited per NPC and are retained with the NPC.
 
+Since 0.4.37, the model picker and tweak editor render a dedicated idle-only YSM preview player. The edited world NPC is not used as the inventory-screen entity, and repeated slider changes are coalesced to one update per GUI tick instead of recreating the proxy for every input event. World proxies are likewise advanced once per client tick even while culled; render passes only interpolate the synchronized state. The former full-model hurt recovery reload and whole-model vertex-floor correction were removed because weapons and animated accessories could contaminate those bounds and visibly move the complete model.
+
+Client render tracing is disabled by default. It can be enabled for diagnostics in `config/customnpcs_ysm_compat-client.toml` with `diagnostics.renderStability=true`; enabled traces are limited to one record per NPC tick.
+
 For the local player, the same formal `config_forms` choices made through YSM's **Z** menu are also retained automatically. They are stored per player UUID and per model in `config/customnpcs_ysm_compat_player_tweaks.json`, then restored after the YSM player model is ready. The file contains only form IDs and selected values—never raw Molang. Values that YSM normally synchronizes are sent using YSM's own packet; its intentionally local-only `v.roaming.*` values remain local.
 
 Version 0.4.7 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. CustomNPCs' native **Crawl** action now also becomes a real TaCZ crawl request for YSM NPCs holding a TaCZ gun: TaCZ validates the weapon and ground conditions, applies its own prone pose/state, and YSM mirrors the same ground-prone player pose. Unsupported guns, water, jumping and passengers remain governed by TaCZ's normal rejection rules. With TaCZ present, a gun NPC first completes TaCZ ADS before firing. During a non-empty Dominion attack queue it remains in ADS across the target-switch and reaction interval, then leaves ADS once the queue ends; an explicit command cancellation always releases ADS immediately. The proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations. Melee synchronization diagnostics use the `YSM-ATTACK-TRACE` log prefix.
@@ -34,4 +38,4 @@ The two required mod jars are resolved from `../原型模组` by `build.gradle`.
 .\gradlew.bat clean test build -Pdominionsword_jar=../DominionSword-1.20.1/build/libs/dominionsword-1.32.7.jar
 ```
 
-The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.31.jar`.
+The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.37.jar`.
