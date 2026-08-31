@@ -256,6 +256,14 @@ public final class AnimatedNpcRenderBridge {
             player.setItemSlot(slot, npc.getItemBySlot(slot));
         }
         GunCompat.syncClientState(npc, player);
+        NpcActionClientState.State actionState = NpcActionClientState.state(npc);
+        String desiredAction = holder.modelId.equals(actionState.actionSetId()) ? actionState.actionId() : "";
+        if (actionState.revision() != holder.appliedActionRevision || !desiredAction.equals(holder.appliedAction)) {
+            if (desiredAction.isBlank()) Ysm265Adapter.stopPlayerAction(player);
+            else if (!Ysm265Adapter.playPlayerAction(player, desiredAction)) desiredAction = "";
+            holder.appliedAction = desiredAction;
+            holder.appliedActionRevision = actionState.revision();
+        }
         traceProxyState(holder, npc, player, visibility);
         // The proxy is deliberately not inserted into ClientLevel, so Forge/YSM never sends
         // it the normal per-entity capability tick. Advance that state exactly once for each
@@ -486,6 +494,8 @@ public final class AnimatedNpcRenderBridge {
         private int ysmFoodLevel = -1;
         private String modelId = "";
         private YsmTweakProfile appliedTweaks = YsmTweakProfile.EMPTY;
+        private String appliedAction = "";
+        private long appliedActionRevision = Long.MIN_VALUE;
 
         private AnimatedProxy(YsmNpcProxyPlayer player) {
             this.player = player;

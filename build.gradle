@@ -52,6 +52,8 @@ dependencies {
         throw new GradleException('Set -Pdominionsword_jar=<Dominion Sword jar> to compile the optional command adapter.')
     }
     compileOnly files(project.property('dominionsword_jar'))
+    testCompileOnly files(project.property('dominionsword_jar'))
+    testRuntimeOnly files(project.property('dominionsword_jar'))
     testImplementation platform('org.junit:junit-bom:5.10.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

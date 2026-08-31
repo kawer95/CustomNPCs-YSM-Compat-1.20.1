@@ -295,6 +295,24 @@ public final class Ysm265Adapter {
         }
     }
 
+    /** Applies a roulette action to the proxy capability; callers invoke this only during proxy tick sync. */
+    public static boolean playPlayerAction(Player player, String actionId) {
+        if (player == null || actionId == null || actionId.isBlank()) return false;
+        try {
+            Bindings b = bindings(); Optional<Object> value = playerAnimatable(player, b);
+            if (value.isEmpty()) return false;
+            b.playPlayerAction.invoke(value.get(), actionId); return true;
+        } catch (Throwable error) { report(error); return false; }
+    }
+
+    public static void stopPlayerAction(Player player) {
+        if (player == null) return;
+        try {
+            Bindings b = bindings(); Optional<Object> value = playerAnimatable(player, b);
+            if (value.isPresent()) b.stopPlayerAction.invoke(value.get());
+        } catch (Throwable error) { report(error); }
+    }
+
     private static String expressionFor(YsmTweakEntry entry, LoadedTweakForm loaded, String modelId) {
         YsmTweakForm form = loaded.form();
         return switch (entry.kind()) {
@@ -541,6 +559,8 @@ public final class Ysm265Adapter {
                 Method getPlayerSyncData = animatable.getMethod(OBF);
                 Method advancePlayerAnimation = animatable.getMethod("oOo0o0000OOOO0OooooO00oo");
                 Method getPlayerModelId = animatable.getMethod("ooooO0o00oO0Oo0OOo0O0O0o");
+                Method playPlayerAction = animatable.getMethod("oo0OoO00oOoo000O0000o0oo", String.class);
+                Method stopPlayerAction = animatable.getMethod("oo00O0OoO0o00000O0o000oo");
                 Field foodLevel = Class.forName(PLAYER_SYNC_DATA)
                         .getDeclaredField("o0OOO0o0o0OOo000oO00o00O");
                 foodLevel.setAccessible(true);
@@ -567,7 +587,7 @@ public final class Ysm265Adapter {
                         .getConstructor(String.class, int.class);
                 Method sendYsmPacket = Class.forName(NETWORK).getMethod(OBF, Object.class);
                 bindings = new Bindings(modelRegistry, capability, setModel, isValid,
-                        getPlayerSyncData, advancePlayerAnimation, getPlayerModelId, foodLevel, customRenderType,
+                        getPlayerSyncData, advancePlayerAnimation, getPlayerModelId, playPlayerAction, stopPlayerAction, foodLevel, customRenderType,
                         configForm, rangeForm, radioForm, formType, formTitle, formDescription, formVariable,
                         rangeStep, rangeMin, rangeMax, radioLabels, parseExpression, applyExpression,
                         isLocalOnlyExpression, expressionPacket, sendYsmPacket);
@@ -596,6 +616,7 @@ public final class Ysm265Adapter {
     private record Bindings(Method modelRegistry, Capability<?> playerCapability,
                             Method setPlayerModel, Method isPlayerModelValid,
                             Method getPlayerSyncData, Method advancePlayerAnimation, Method getPlayerModelId,
+                            Method playPlayerAction, Method stopPlayerAction,
                             Field foodLevel, Method customRenderType,
                             Class<?> configForm, Class<?> rangeForm, Class<?> radioForm,
                             Method formType, Method formTitle, Method formDescription, Method formVariable,
