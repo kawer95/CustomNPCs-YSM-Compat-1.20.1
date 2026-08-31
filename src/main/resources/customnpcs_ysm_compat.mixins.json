@@ -10,6 +10,7 @@
     "EntityNpcItemCapabilityMixin",
     "EntitySharedFlagAccessor",
     "EntityNPCInterfaceMixin",
+    "EntityMaidTweakDataMixin",
     "MobMeleeAttackMixin"
   ],
   "client": [
@@ -20,7 +21,10 @@
     "client.TaczBulletRendererMixin",
     "client.YsmLivingRenderPipelineMixin",
     "client.YsmGenericRendererMixin",
-    "client.YsmAnimationRouletteMixin"
+    "client.YsmAnimationRouletteMixin",
+    "client.YsmMaidScreenAccessor",
+    "client.YsmMaidConfigScreenAccessor",
+    "client.YsmMaidAnimatableMixin"
   ],
   "injectors": {
     "defaultRequire": 1

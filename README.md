@@ -7,6 +7,7 @@ Forge 1.20.1 compatibility mod that lets a CustomNPC use any locally loaded Yes 
 - Forge 47.4.22
 - CustomNPCs GBPort Unofficial `1.20.1.20260711+`
 - Yes Steve Model `2.6.5-forge+mc1.20.1+`
+- Touhou Little Maid `1.5.3-forge+mc1.20.1+`
 
 The build and automated compatibility checks use CustomNPCs `1.20.1.20260711` and YSM `2.6.5-forge+mc1.20.1` as their baseline. Forge's runtime dependency ranges intentionally have no upper bound: later versions are allowed to load. If a later YSM release changes one of its private, obfuscated client entry points, the adapter logs the failure and the affected NPC falls back to the normal CustomNPC model instead of assuming a second pinned YSM version.
 
@@ -26,6 +27,8 @@ Client render tracing is disabled by default. It can be enabled for diagnostics 
 
 For the local player, the same formal `config_forms` choices made through YSM's **Z** menu are also retained automatically. They are stored per player UUID and per model in `config/customnpcs_ysm_compat_player_tweaks.json`, then restored after the YSM player model is ready. The file contains only form IDs and selected values—never raw Molang. Values that YSM normally synchronizes are sent using YSM's own packet; its intentionally local-only `v.roaming.*` values remain local.
 
+Since 0.4.38, the same formal choices made in YSM's dedicated Touhou Little Maid model screen are stored on the maid itself. The bounded declarative profile is synchronized entity data, saved in the maid NBT, and restored directly into YSM 2.6.5's maid animatable after its model is ready. Initial entity spawn and later entity-data updates therefore carry the configured body-part state into Replay recordings and playback; raw Molang is never accepted from the client.
+
 Version 0.4.7 drives YSM's native player animator through a client-only `RemotePlayer` proxy. It synchronizes idle, physical movement and movement-facing body rotation, independent head rotation, confirmed melee hits, hurt reactions and death while preserving the NPC's scale, equipment and name tag. CustomNPCs' native **Crawl** action now also becomes a real TaCZ crawl request for YSM NPCs holding a TaCZ gun: TaCZ validates the weapon and ground conditions, applies its own prone pose/state, and YSM mirrors the same ground-prone player pose. Unsupported guns, water, jumping and passengers remain governed by TaCZ's normal rejection rules. With TaCZ present, a gun NPC first completes TaCZ ADS before firing. During a non-empty Dominion attack queue it remains in ADS across the target-switch and reaction interval, then leaves ADS once the queue ends; an explicit command cancellation always releases ADS immediately. The proxy receives TaCZ's synchronized aim, fire, bolt and reload values for YSM's native gun animations. Melee synchronization diagnostics use the `YSM-ATTACK-TRACE` log prefix.
 
 The projectile slot and eight drop slots form the NPC's TaCZ ammunition inventory. Normal ammunition, ammo boxes and infinite ammo boxes are handled by TaCZ. Gun timing comes from the gun pack; CustomNPC ranged damage, projectile speed and burst timing do not override it. Server distance defaults are 64 blocks for sniper rifles, 48 for rifles and other weapons, and 32 for pistols, shotguns and SMGs.
@@ -38,4 +41,4 @@ The two required mod jars are resolved from `../原型模组` by `build.gradle`.
 .\gradlew.bat clean test build -Pdominionsword_jar=../DominionSword-1.20.1/build/libs/dominionsword-1.32.7.jar
 ```
 
-The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.37.jar`.
+The distributable jar is written to `build/libs/customnpcs_ysm_compat-0.4.38.jar`.

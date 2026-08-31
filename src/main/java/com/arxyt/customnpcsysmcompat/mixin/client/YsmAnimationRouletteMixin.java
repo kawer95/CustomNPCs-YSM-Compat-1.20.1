@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.mixin.client;
 
 import com.arxyt.customnpcsysmcompat.client.YsmPlayerTweakPersistence;
+import com.arxyt.customnpcsysmcompat.client.YsmMaidTweakClient;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -15,6 +16,8 @@ public abstract class YsmAnimationRouletteMixin {
             at = @At("HEAD"), remap = false)
     private void customnpcsYsmCompat$captureConfigForm(String expression, Consumer<String> feedback,
                                                         CallbackInfo ci) {
-        YsmPlayerTweakPersistence.captureRouletteExpression(expression);
+        if (!YsmMaidTweakClient.captureScreenExpression(expression)) {
+            YsmPlayerTweakPersistence.captureRouletteExpression(expression);
+        }
     }
 }

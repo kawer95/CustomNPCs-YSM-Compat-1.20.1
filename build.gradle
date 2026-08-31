@@ -37,7 +37,7 @@ repositories {
         url = 'https://www.cursemaven.com'
         content { includeGroup 'curse.maven' }
     }
-    flatDir { dirs '../原型模组' }
+    flatDir { dirs '../原型模组', '../TouhouLittleMaid-1.20/build/libs' }
 }
 
 dependencies {
@@ -46,6 +46,7 @@ dependencies {
     // ForgeGradle remaps the production jars for userdev runs; normal output still does not bundle them.
     implementation fg.deobf('local:[自定义NPC]CustomNPCs-1.20.1-GBPort-Unofficial:1.20.1.20260711')
     implementation fg.deobf('local:[野山梅]ysm:2.6.5-forge+mc1.20.1-release')
+    implementation fg.deobf('local:touhoulittlemaid:1.5.3-forge+mc1.20.1')
     compileOnly fg.deobf('curse.maven:timeless-and-classics-zero-1028108:6518539-sources-6518544')
     if (!project.hasProperty('dominionsword_jar')) {
         throw new GradleException('Set -Pdominionsword_jar=<Dominion Sword jar> to compile the optional command adapter.')

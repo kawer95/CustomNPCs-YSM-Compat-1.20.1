@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat;
 
 import com.mojang.logging.LogUtils;
+import com.arxyt.customnpcsysmcompat.network.CompatNetwork;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
@@ -14,6 +15,7 @@ public final class CustomNpcsYsmCompat {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public CustomNpcsYsmCompat() {
+        CompatNetwork.register();
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, YsmTaczConfig.SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, RenderStabilityConfig.SPEC);
         MinecraftForge.EVENT_BUS.register(new CommonEvents());

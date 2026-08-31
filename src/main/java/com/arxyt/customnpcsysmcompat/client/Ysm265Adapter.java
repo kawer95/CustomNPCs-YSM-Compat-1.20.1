@@ -115,7 +115,19 @@ public final class Ysm265Adapter {
         if (player == null || expression == null || expression.isBlank()) return Optional.empty();
         try {
             String modelId = playerModelId(player);
-            if (modelId.isBlank()) return Optional.empty();
+            return captureTweak(modelId, expression);
+        } catch (Throwable error) {
+            report(error);
+            return Optional.empty();
+        }
+    }
+
+    /** Converts a formal config-form expression for a known model into a stored selection. */
+    public static Optional<CapturedPlayerTweak> captureTweak(String modelId, String expression) {
+        if (modelId == null || modelId.isBlank() || expression == null || expression.isBlank()) {
+            return Optional.empty();
+        }
+        try {
             ModelTweakConfig config = tweakConfig(modelId, bindings());
             String normalized = expression.trim();
 
@@ -195,46 +207,64 @@ public final class Ysm265Adapter {
             Bindings b = bindings();
             Optional<Object> animatable = playerAnimatable(player, b);
             if (animatable.isEmpty()) return TweakApplyResult.NONE;
-            ModelTweakConfig config = tweakConfig(modelId, b);
-            int applied = 0;
-            int skipped = 0;
-            for (YsmTweakEntry entry : profile.entries()) {
-                LoadedTweakForm form = config.forms().get(entry.identity());
-                if (form == null) {
-                    tweakWarning(modelId, entry, "form no longer exists");
-                    skipped++;
-                    continue;
-                }
-                if (form.form().kind() != entry.kind()
-                        || !form.form().variable().equals(entry.variable())) {
-                    tweakWarning(modelId, entry, "form type or variable changed");
-                    skipped++;
-                    continue;
-                }
-                String expression = expressionFor(entry, form, modelId);
-                if (expression == null) {
-                    skipped++;
-                    continue;
-                }
-                try {
-                    Object parsed = b.parseExpression.invoke(null, expression);
-                    b.applyExpression.invoke(animatable.get(), parsed, true, false, null);
-                    if (synchronize && Minecraft.getInstance().player == player
-                            && !(boolean) b.isLocalOnlyExpression.invoke(null, expression)) {
-                        Object packet = b.expressionPacket.newInstance(expression, player.getId());
-                        b.sendYsmPacket.invoke(null, packet);
-                    }
-                    applied++;
-                } catch (Throwable error) {
-                    tweakWarning(modelId, entry, "expression rejected: " + error.getClass().getSimpleName());
-                    skipped++;
-                }
-            }
-            return new TweakApplyResult(applied, skipped);
+            return applyTweaks(animatable.get(), modelId, profile, synchronize ? player : null, b);
         } catch (Throwable error) {
             report(error);
             return TweakApplyResult.NONE;
         }
+    }
+
+    /** Applies a formal profile to any YSM animatable, including YSM's maid proxy. */
+    public static TweakApplyResult applyTweaks(Object animatable, String modelId, YsmTweakProfile profile) {
+        if (animatable == null || profile == null || profile.isEmpty()
+                || modelId == null || modelId.isBlank()) return TweakApplyResult.NONE;
+        try {
+            return applyTweaks(animatable, modelId, profile, null, bindings());
+        } catch (Throwable error) {
+            report(error);
+            return TweakApplyResult.NONE;
+        }
+    }
+
+    private static TweakApplyResult applyTweaks(Object animatable, String modelId,
+                                                 YsmTweakProfile profile, Player synchronizePlayer,
+                                                 Bindings b) throws ReflectiveOperationException {
+        ModelTweakConfig config = tweakConfig(modelId, b);
+        int applied = 0;
+        int skipped = 0;
+        for (YsmTweakEntry entry : profile.entries()) {
+            LoadedTweakForm form = config.forms().get(entry.identity());
+            if (form == null) {
+                tweakWarning(modelId, entry, "form no longer exists");
+                skipped++;
+                continue;
+            }
+            if (form.form().kind() != entry.kind()
+                    || !form.form().variable().equals(entry.variable())) {
+                tweakWarning(modelId, entry, "form type or variable changed");
+                skipped++;
+                continue;
+            }
+            String expression = expressionFor(entry, form, modelId);
+            if (expression == null) {
+                skipped++;
+                continue;
+            }
+            try {
+                Object parsed = b.parseExpression.invoke(null, expression);
+                b.applyExpression.invoke(animatable, parsed, true, false, null);
+                if (synchronizePlayer != null && Minecraft.getInstance().player == synchronizePlayer
+                        && !(boolean) b.isLocalOnlyExpression.invoke(null, expression)) {
+                    Object packet = b.expressionPacket.newInstance(expression, synchronizePlayer.getId());
+                    b.sendYsmPacket.invoke(null, packet);
+                }
+                applied++;
+            } catch (Throwable error) {
+                tweakWarning(modelId, entry, "expression rejected: " + error.getClass().getSimpleName());
+                    skipped++;
+            }
+        }
+        return new TweakApplyResult(applied, skipped);
     }
 
     /** Normalizes a range value exactly as the NPC page does before it enters YSM. */
