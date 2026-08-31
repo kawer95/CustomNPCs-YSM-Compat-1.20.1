@@ -30,7 +30,10 @@ public final class YsmMaidTweakClient {
         String modelId = YsmDisplayData.normalizeModelId(maid.getYsmModelId());
         Ysm265Adapter.captureTweak(modelId, expression).ifPresent(captured -> {
             ((IYsmMaidTweakData) maid).customnpcsYsmCompat$putMaidTweak(modelId, captured.entry());
-            CompatNetwork.sendMaidTweak(new MaidTweakMessage(maid.getId(), modelId, captured.entry()));
+            var listener = Minecraft.getInstance().getConnection();
+            if (listener != null && CompatNetwork.isRemotePresent(listener.getConnection())) {
+                CompatNetwork.sendMaidTweak(new MaidTweakMessage(maid.getId(), modelId, captured.entry()));
+            }
         });
         return true;
     }
