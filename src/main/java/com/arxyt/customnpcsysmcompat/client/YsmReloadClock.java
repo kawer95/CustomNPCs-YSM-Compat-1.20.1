@@ -1,42 +1,47 @@
 package com.arxyt.customnpcsysmcompat.client;
 
-/**
- * Continuous time transform for YSM's fixed-length reload clip.  Transitions preserve the
- * current virtual time so entering or leaving reload cannot jump every other animation layer.
- */
+/** Scales YSM's animation-local elapsed time while TaCZ is reloading. */
 final class YsmReloadClock {
-    private boolean targetActive;
-    private float targetSpeed = 1.0F;
     private boolean active;
-    private boolean initialized;
     private float speed = 1.0F;
-    private float rawAnchor;
-    private float virtualAnchor;
+    private int activeSyncs;
+    private boolean mixinHit;
+    private boolean missingMixinReported;
 
     void target(boolean active, float speed) {
-        targetActive = active;
-        if (active && !this.active) targetSpeed = validSpeed(speed);
-    }
-
-    float transform(float rawTime) {
-        if (!initialized) {
-            initialized = true;
-            active = targetActive;
-            speed = active ? targetSpeed : 1.0F;
-            rawAnchor = rawTime;
-            virtualAnchor = rawTime;
-        } else if (active != targetActive) {
-            float current = mapped(rawTime);
-            active = targetActive;
-            speed = active ? targetSpeed : 1.0F;
-            rawAnchor = rawTime;
-            virtualAnchor = current;
+        if (active && !this.active) {
+            this.speed = validSpeed(speed);
+            activeSyncs = 0;
+            mixinHit = false;
+            missingMixinReported = false;
         }
-        return mapped(rawTime);
+        this.active = active;
+        if (!active) this.speed = 1.0F;
+        if (active) activeSyncs++;
     }
 
-    private float mapped(float rawTime) {
-        return virtualAnchor + (rawTime - rawAnchor) * speed;
+    float scaleElapsed(float elapsed) {
+        if (!active) return elapsed;
+        mixinHit = true;
+        return elapsed * speed;
+    }
+
+    boolean active() {
+        return active;
+    }
+
+    float speed() {
+        return speed;
+    }
+
+    boolean mixinHit() {
+        return mixinHit;
+    }
+
+    boolean shouldReportMissingMixin() {
+        if (!active || mixinHit || missingMixinReported || activeSyncs < 3) return false;
+        missingMixinReported = true;
+        return true;
     }
 
     private static float validSpeed(float speed) {

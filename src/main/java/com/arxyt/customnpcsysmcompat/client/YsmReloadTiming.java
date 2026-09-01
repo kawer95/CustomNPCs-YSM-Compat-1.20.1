@@ -1,5 +1,6 @@
 package com.arxyt.customnpcsysmcompat.client;
 
+import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.tacz.guns.api.entity.ReloadState;
@@ -14,7 +15,21 @@ final class YsmReloadTiming {
     }
 
     static void sync(YsmReloadClock clock, LivingEntity entity) {
-        clock.target(reloadActive(entity), reloadPlaybackSpeed(entity));
+        boolean active = reloadActive(entity);
+        float speed = reloadPlaybackSpeed(entity);
+        boolean wasActive = clock.active();
+        clock.target(active, speed);
+        if (active != wasActive) {
+            CustomNpcsYsmCompat.LOGGER.info(
+                    "[YSM-RELOAD-TIMING] entityId={} entityType={} active={} playbackSpeed={}",
+                    entity.getId(), entity.getType(), active, clock.speed());
+        }
+        if (clock.shouldReportMissingMixin()) {
+            CustomNpcsYsmCompat.LOGGER.error(
+                    "[YSM-RELOAD-ANIM] entityId={} entityType={} elapsedMixin=MISS; "
+                            + "YSM reload duration scaling is unavailable",
+                    entity.getId(), entity.getType());
+        }
     }
 
     private static boolean reloadActive(LivingEntity entity) {
