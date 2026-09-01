@@ -112,14 +112,7 @@ public final class Tacz115Compat implements GunCompatFacade {
         prepareImmediateFire(shooter, operator);
         String gunKey = String.valueOf(gun.getGunId(gunStack));
         String previous = equippedGuns.put(shooter, gunKey);
-        if (!gunKey.equals(previous)) {
-            operator.draw(shooter::getMainHandItem);
-            return Action.waitFor(seconds(data.getDrawTime()) + 2);
-        }
-        if (needsAimForTarget(operator.getSynIsAiming())) {
-            operator.aim(true);
-            return Action.waitFor(seconds(data.getAimTime()) + 2);
-        }
+        prepareImmediateEngagement(operator, !gunKey.equals(previous));
 
         double x = target.getX() - shooter.getX();
         double z = target.getZ() - shooter.getZ();
@@ -150,16 +143,21 @@ public final class Tacz115Compat implements GunCompatFacade {
                     ? heldTriggerShoot(shooter, operator, gun, gunStack, data, pitch, adjustedYaw)
                     : operator.shoot(() -> pitch, () -> adjustedYaw);
         }
+        if (result == ShootResult.NOT_DRAW) {
+            // A capability recreation must not turn the next target into a full draw animation.
+            // Rebind the visible main-hand gun and retry before leaving this server tick.
+            prepareImmediateEngagement(operator, true);
+            result = watchFire && DominionCommandBridge.watchContinuousFireRequested(shooter) && machineGun
+                    ? heldTriggerShoot(shooter, operator, gun, gunStack, data, pitch, adjustedYaw)
+                    : operator.shoot(() -> pitch, () -> adjustedYaw);
+        }
         traceResult(shooter, gunStack, gun, operator, result);
         traceProneAim(shooter, target, gun, operator, result, yaw, pitch, adjustedYaw,
                 aimError, accuracyRoll);
 
         return switch (result) {
             case SUCCESS -> new Action(successDelay(gun, gunStack, shooter), true);
-            case NOT_DRAW -> {
-                operator.draw(shooter::getMainHandItem);
-                yield Action.waitFor(seconds(data.getDrawTime()) + 2);
-            }
+            case NOT_DRAW -> Action.waitFor(1);
             case NEED_BOLT -> {
                 operator.bolt();
                 yield Action.waitFor(seconds(data.getBoltActionTime()) + 2);
@@ -222,6 +220,16 @@ public final class Tacz115Compat implements GunCompatFacade {
         shooter.setSprinting(false);
         operator.getDataHolder().sprintTimeS = 0.0F;
         operator.getDataHolder().sprintTimestamp = System.currentTimeMillis();
+    }
+
+    /**
+     * A CNPC's equipped gun is already visible and is not a player hotbar transition. Bind that
+     * stack directly, clear TaCZ's draw gate, and begin ADS without postponing the server shot.
+     */
+    private static void prepareImmediateEngagement(IGunOperator operator, boolean gunChanged) {
+        if (gunChanged || operator.getDataHolder().currentGunItem == null) operator.initialData();
+        operator.getDataHolder().drawTimestamp = -1L;
+        if (!operator.getDataHolder().isAiming) operator.aim(true);
     }
 
     @Override
