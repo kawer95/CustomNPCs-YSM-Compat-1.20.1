@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class YsmAnimationClockMixin {
     @Inject(
             method = "Oo0Oo0o00O00Oo0OOoOOoooo(F)F",
-            at = @At("RETURN"), cancellable = true, require = 0)
+            at = @At("RETURN"), cancellable = true, remap = false, require = 1)
     private void customnpcsYsmCompat$scaleReloadElapsed(float rawTime,
                                                          CallbackInfoReturnable<Float> cir) {
         cir.setReturnValue(YsmReloadTimeContext.scaleElapsed(cir.getReturnValueF()));

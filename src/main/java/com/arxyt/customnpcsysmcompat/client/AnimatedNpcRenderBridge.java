@@ -91,12 +91,10 @@ public final class AnimatedNpcRenderBridge {
                         npc.scaleZ / 5.0F * size);
                 float renderYaw = holder.orientation.interpolatedBodyYaw(partialTick);
                 GunCompat.beginClientRender();
-                YsmReloadTimeContext.begin(holder.reloadClock);
                 try {
                     rendered = Ysm265Adapter.renderPlayer(holder.player, renderYaw, partialTick,
                             poseStack, buffers, packedLight);
                 } finally {
-                    YsmReloadTimeContext.end();
                     GunCompat.endClientRender();
                 }
             } finally {
@@ -260,7 +258,6 @@ public final class AnimatedNpcRenderBridge {
             player.setItemSlot(slot, npc.getItemBySlot(slot));
         }
         GunCompat.syncClientState(npc, player);
-        YsmReloadTiming.sync(holder.reloadClock, player);
         NpcActionClientState.State actionState = NpcActionClientState.state(npc);
         String desiredAction = holder.modelId.equals(actionState.actionSetId()) ? actionState.actionId() : "";
         if (actionState.revision() != holder.appliedActionRevision || !desiredAction.equals(holder.appliedAction)) {
@@ -444,6 +441,7 @@ public final class AnimatedNpcRenderBridge {
         MeleeAttackSync.clear();
         ProxyVisibilityContext.clearDebugState();
         Ysm265Adapter.clearTweakDiagnostics();
+        YsmReloadRenderScope.clear();
     }
 
     /** Advances every existing world proxy independently of visibility and render passes. */
@@ -497,7 +495,6 @@ public final class AnimatedNpcRenderBridge {
         private final NpcAnimationController controller = new NpcAnimationController();
         private final NpcMovementTracker movementTracker = new NpcMovementTracker();
         private final NpcOrientationTracker orientationTracker = new NpcOrientationTracker();
-        private final YsmReloadClock reloadClock = new YsmReloadClock();
         private NpcOrientationTracker.Frame orientation = NpcOrientationTracker.fixed(0.0F, 0.0F);
         private int lastObservedNpcTick = Integer.MIN_VALUE;
         private int lastSyncedTick = Integer.MIN_VALUE;
