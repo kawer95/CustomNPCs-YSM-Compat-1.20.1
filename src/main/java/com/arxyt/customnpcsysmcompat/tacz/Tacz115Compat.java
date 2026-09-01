@@ -96,6 +96,7 @@ public final class Tacz115Compat implements GunCompatFacade {
         CommonGunIndex index = indexOptional.get();
         GunData data = index.getGunData();
         IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
+        prepareImmediateFire(shooter, operator);
         String gunKey = String.valueOf(gun.getGunId(gunStack));
         String previous = equippedGuns.put(shooter, gunKey);
         if (!gunKey.equals(previous)) {
@@ -125,6 +126,12 @@ public final class Tacz115Compat implements GunCompatFacade {
                 Math.sqrt(x * x + z * z), accuracyRoll, magnitudeRoll, positiveError);
         float adjustedYaw = yaw + aimError;
         ShootResult result = operator.shoot(() -> pitch, () -> adjustedYaw);
+        if (result == ShootResult.IS_SPRINTING) {
+            // If another hook restored a sprint transition during this tick, retry after
+            // clearing only that gate. All mechanical weapon gates remain authoritative.
+            prepareImmediateFire(shooter, operator);
+            result = operator.shoot(() -> pitch, () -> adjustedYaw);
+        }
         traceResult(shooter, gunStack, gun, operator, result);
         traceProneAim(shooter, target, gun, operator, result, yaw, pitch, adjustedYaw,
                 aimError, accuracyRoll);
@@ -148,6 +155,13 @@ public final class Tacz115Compat implements GunCompatFacade {
             case COOL_DOWN, IS_RELOADING, IS_DRAWING, IS_BOLTING, IS_MELEE, IS_SPRINTING -> Action.waitFor(1);
             default -> Action.waitFor(20);
         };
+    }
+
+    /** Preserves sprint for movement animation, but makes a requested shot leave it immediately. */
+    private static void prepareImmediateFire(EntityNPCInterface shooter, IGunOperator operator) {
+        shooter.setSprinting(false);
+        operator.getDataHolder().sprintTimeS = 0.0F;
+        operator.getDataHolder().sprintTimestamp = System.currentTimeMillis();
     }
 
     @Override
