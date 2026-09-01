@@ -14,6 +14,7 @@
     "MobMeleeAttackMixin"
   ],
   "client": [
+    "client.CustomNpcRendererYsmMixin",
     "client.GuiCreationEntitiesMixin",
     "client.ChatMessagesDepthMixin",
     "client.GuiMpmPartMixin",
