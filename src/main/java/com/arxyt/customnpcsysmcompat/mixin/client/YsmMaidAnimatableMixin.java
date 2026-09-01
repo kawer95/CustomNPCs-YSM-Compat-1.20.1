@@ -2,7 +2,6 @@ package com.arxyt.customnpcsysmcompat.mixin.client;
 
 import com.arxyt.customnpcsysmcompat.client.Ysm265Adapter;
 import com.arxyt.customnpcsysmcompat.client.YsmMaidTweakClient;
-import com.arxyt.customnpcsysmcompat.client.YsmReloadRenderScope;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import com.arxyt.customnpcsysmcompat.data.YsmTweakProfile;
 import com.github.tartaricacid.touhoulittlemaid.api.entity.IMaid;
@@ -20,8 +19,6 @@ public abstract class YsmMaidAnimatableMixin {
     private String customnpcsYsmCompat$appliedModel = "";
     @Unique
     private YsmTweakProfile customnpcsYsmCompat$appliedProfile = YsmTweakProfile.EMPTY;
-    @Unique
-    private boolean customnpcsYsmCompat$reloadScopeActive;
 
     @Shadow
     public abstract IMaid getMaid();
@@ -39,22 +36,5 @@ public abstract class YsmMaidAnimatableMixin {
             customnpcsYsmCompat$appliedModel = normalizedModel;
             customnpcsYsmCompat$appliedProfile = profile;
         }
-    }
-
-    /* YSM evaluates maid bones inside this concrete hook, before Forge fires RenderLivingEvent.Pre. */
-    @Inject(method = "Oo0Oo0o00O00Oo0OOoOOoooo(FZ)V", at = @At("HEAD"),
-            remap = false, require = 1)
-    private void customnpcsYsmCompat$beginReloadScope(float partialTick, boolean firstPerson,
-                                                       CallbackInfo ci) {
-        EntityMaid maid = getMaid().asStrictMaid();
-        customnpcsYsmCompat$reloadScopeActive = YsmReloadRenderScope.begin(maid);
-    }
-
-    @Inject(method = "Oo0Oo0o00O00Oo0OOoOOoooo(FZ)V", at = @At("RETURN"),
-            remap = false, require = 1)
-    private void customnpcsYsmCompat$endReloadScope(float partialTick, boolean firstPerson,
-                                                     CallbackInfo ci) {
-        YsmReloadRenderScope.end(customnpcsYsmCompat$reloadScopeActive);
-        customnpcsYsmCompat$reloadScopeActive = false;
     }
 }

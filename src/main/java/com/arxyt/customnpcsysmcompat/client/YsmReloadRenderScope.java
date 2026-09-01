@@ -1,5 +1,6 @@
 package com.arxyt.customnpcsysmcompat.client;
 
+import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -9,9 +10,9 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Opens reload timing around YSM's own animation update, not around Forge's later render event.
- * YSM evaluates its bones before RenderLivingEvent.Pre, so an event-based scope can calculate the
- * right speed while still missing every animation-player call.
+ * Owns one virtual YSM animation clock per eligible entity. The animation-controller mixin calls
+ * this directly from YSM's actual update path; no render-thread scope is required, which also
+ * covers YSM's worker-thread maid evaluation.
  */
 public final class YsmReloadRenderScope {
     private static final Map<LivingEntity, YsmReloadClock> CLOCKS =
@@ -20,21 +21,22 @@ public final class YsmReloadRenderScope {
     private YsmReloadRenderScope() {
     }
 
-    public static boolean begin(Entity entity) {
-        if (!(entity instanceof LivingEntity living) || !eligible(living)) return false;
+    public static float adjustAnimationTime(Entity entity, float rawTime) {
+        if (!(entity instanceof LivingEntity living) || !eligible(living)) return rawTime;
         YsmReloadClock clock = CLOCKS.computeIfAbsent(living, ignored -> new YsmReloadClock());
         YsmReloadTiming.sync(clock, living);
-        YsmReloadTimeContext.begin(clock);
-        return true;
-    }
-
-    public static void end(boolean active) {
-        if (active) YsmReloadTimeContext.end();
+        boolean firstHit = clock.active() && !clock.mixinHit();
+        float adjusted = clock.scaleAbsoluteTime(rawTime);
+        if (firstHit) {
+            CustomNpcsYsmCompat.LOGGER.info(
+                    "[YSM-RELOAD-ANIM] entityId={} entityType={} updateClockMixin=HIT speed={} rawTime={} virtualTime={}",
+                    living.getId(), living.getType(), clock.speed(), rawTime, adjusted);
+        }
+        return adjusted;
     }
 
     public static void clear() {
         CLOCKS.clear();
-        YsmReloadTimeContext.end();
     }
 
     private static boolean eligible(LivingEntity entity) {

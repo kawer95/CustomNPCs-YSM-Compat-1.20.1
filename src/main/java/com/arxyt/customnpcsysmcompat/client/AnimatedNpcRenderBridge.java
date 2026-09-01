@@ -91,12 +91,10 @@ public final class AnimatedNpcRenderBridge {
                         npc.scaleZ / 5.0F * size);
                 float renderYaw = holder.orientation.interpolatedBodyYaw(partialTick);
                 GunCompat.beginClientRender();
-                boolean reloadScope = YsmReloadRenderScope.begin(holder.player);
                 try {
                     rendered = Ysm265Adapter.renderPlayer(holder.player, renderYaw, partialTick,
                             poseStack, buffers, packedLight);
                 } finally {
-                    YsmReloadRenderScope.end(reloadScope);
                     GunCompat.endClientRender();
                 }
             } finally {

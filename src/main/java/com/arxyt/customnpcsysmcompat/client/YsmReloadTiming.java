@@ -24,12 +24,6 @@ final class YsmReloadTiming {
                     "[YSM-RELOAD-TIMING] entityId={} entityType={} active={} playbackSpeed={}",
                     entity.getId(), entity.getType(), active, clock.speed());
         }
-        if (clock.shouldReportMissingMixin()) {
-            CustomNpcsYsmCompat.LOGGER.error(
-                    "[YSM-RELOAD-ANIM] entityId={} entityType={} elapsedMixin=MISS; "
-                            + "YSM reload duration scaling is unavailable",
-                    entity.getId(), entity.getType());
-        }
     }
 
     private static boolean reloadActive(LivingEntity entity) {

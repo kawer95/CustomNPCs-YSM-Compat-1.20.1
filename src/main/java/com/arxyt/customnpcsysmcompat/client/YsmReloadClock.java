@@ -1,29 +1,46 @@
 package com.arxyt.customnpcsysmcompat.client;
 
-/** Scales YSM's animation-local elapsed time while TaCZ is reloading. */
+/** Produces a continuous virtual YSM clock with scaled deltas while TaCZ is reloading. */
 final class YsmReloadClock {
     private boolean active;
     private float speed = 1.0F;
-    private int activeSyncs;
     private boolean mixinHit;
-    private boolean missingMixinReported;
+    private boolean initialized;
+    private boolean justActivated;
+    private float lastRawTime;
+    private float virtualTime;
 
     void target(boolean active, float speed) {
         if (active && !this.active) {
             this.speed = validSpeed(speed);
-            activeSyncs = 0;
             mixinHit = false;
-            missingMixinReported = false;
+            justActivated = true;
         }
         this.active = active;
         if (!active) this.speed = 1.0F;
-        if (active) activeSyncs++;
     }
 
-    float scaleElapsed(float elapsed) {
-        if (!active) return elapsed;
+    float scaleAbsoluteTime(float rawTime) {
+        if (!Float.isFinite(rawTime)) return rawTime;
+        if (!initialized || rawTime < lastRawTime || rawTime - lastRawTime > 40.0F) {
+            initialized = true;
+            lastRawTime = rawTime;
+            virtualTime = rawTime;
+        }
+        float delta = Math.max(0.0F, rawTime - lastRawTime);
+        lastRawTime = rawTime;
+        if (!active) {
+            virtualTime = rawTime;
+            return rawTime;
+        }
         mixinHit = true;
-        return elapsed * speed;
+        if (justActivated) {
+            justActivated = false;
+            virtualTime = rawTime;
+        } else {
+            virtualTime += delta * speed;
+        }
+        return virtualTime;
     }
 
     boolean active() {
@@ -36,12 +53,6 @@ final class YsmReloadClock {
 
     boolean mixinHit() {
         return mixinHit;
-    }
-
-    boolean shouldReportMissingMixin() {
-        if (!active || mixinHit || missingMixinReported || activeSyncs < 3) return false;
-        missingMixinReported = true;
-        return true;
     }
 
     private static float validSpeed(float speed) {
