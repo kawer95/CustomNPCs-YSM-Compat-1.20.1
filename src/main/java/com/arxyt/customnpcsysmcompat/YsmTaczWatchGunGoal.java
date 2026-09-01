@@ -123,7 +123,8 @@ public final class YsmTaczWatchGunGoal extends Goal {
     private void trace(LivingEntity target, boolean vanillaCanSee, boolean watchHasClearShot,
                        boolean canFire, String gate) {
         if (npc.tickCount % 20 != 0) return;
-        double range = DominionCommandBridge.watchRange(npc, 64.0D);
+        double range = DominionCommandBridge.watchRange(npc,
+                Math.max(2.0D, npc.stats.ranged.getRange() * 2.0D));
         CustomNpcsYsmCompat.LOGGER.info(
                 "[TACZ-WATCH-GOAL] npcId={} targetId={} range={} distance={} vanillaCanSee={} watchClearShot={} canFire={} cooldown={} gate={}",
                 npc.getId(), target.getId(), decimal(range), decimal(npc.distanceTo(target)), vanillaCanSee,

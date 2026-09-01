@@ -269,7 +269,8 @@ public final class YsmTaczGunGoal extends Goal {
     private double effectiveRange() {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
         if (command.watching()) {
-            return DominionCommandBridge.watchRange(npc, 64.0D);
+            return DominionCommandBridge.watchRange(npc,
+                    Math.max(2.0D, npc.stats.ranged.getRange() * 2.0D));
         }
         if (command.active()) {
             return Math.max(1.0D, npc.stats.ranged.getRange());
