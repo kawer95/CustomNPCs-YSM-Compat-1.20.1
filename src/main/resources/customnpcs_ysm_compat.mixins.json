@@ -23,6 +23,7 @@
     "client.YsmLivingRenderPipelineMixin",
     "client.YsmGenericRendererMixin",
     "client.YsmAnimationRouletteMixin",
+    "client.YsmAnimationClockMixin",
     "client.YsmMaidScreenAccessor",
     "client.YsmMaidConfigScreenAccessor",
     "client.YsmMaidAnimatableMixin"
