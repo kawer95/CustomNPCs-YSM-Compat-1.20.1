@@ -24,6 +24,11 @@ public interface GunCompatFacade {
 
     Action operate(EntityNPCInterface shooter, LivingEntity target);
 
+    default Action operateWatch(EntityNPCInterface shooter, LivingEntity target) { return operate(shooter, target); }
+
+    /** Advances a latched machine-gun trigger along its last aim while watch changes targets. */
+    default Action continueWatchFire(EntityNPCInterface shooter) { return Action.waitFor(1); }
+
     /** Releases transient gun-combat state after a goal yields control. */
     void stop(EntityNPCInterface shooter);
 

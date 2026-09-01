@@ -25,12 +25,14 @@ public final class YsmTaczWatchGunGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return validTarget(DominionCommandBridge.snapshot(npc)) != null;
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        return validTarget(command) != null || continuousSession(command);
     }
 
     @Override
     public boolean canContinueToUse() {
-        return validTarget(DominionCommandBridge.snapshot(npc)) != null;
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        return validTarget(command) != null || continuousSession(command);
     }
 
     @Override
@@ -49,18 +51,22 @@ public final class YsmTaczWatchGunGoal extends Goal {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
         LivingEntity target = validTarget(command);
         GunCompatFacade facade = GunCompat.facade();
-        if (target == null || facade == null) return;
+        if (facade == null) return;
 
         // Watch owns the unit's position. Aim and weapon state are the only permitted output.
         npc.setSprinting(false);
         npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
+        if (target == null) {
+            facade.continueWatchFire(npc);
+            return;
+        }
         if (npc.getTarget() != target) npc.setTarget(target);
 
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
         if (NpcGunTargetReaction.blocks(npc, target, settings, false)) {
             trace(target, false, false, false, "TARGET_REACTION");
-            stopGun(facade);
+            if (continuousSession(command)) facade.continueWatchFire(npc); else stopGun(facade);
             return;
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
@@ -73,10 +79,15 @@ public final class YsmTaczWatchGunGoal extends Goal {
                 && CommandGunTactics.effectiveLineOfSight(true, vanillaCanSee, watchHasClearShot);
         trace(target, vanillaCanSee, watchHasClearShot, canFire,
                 canFire ? "READY" : !facingReady ? "AIM_TURNING" : "NO_CLEAR_SHOT");
-        if (!canFire || --actionCooldown > 0) return;
+        if (!canFire) {
+            if (continuousSession(command)) facade.continueWatchFire(npc);
+            return;
+        }
+        boolean continuous = continuousSession(command) && facade.isMachineGun(npc.getMainHandItem());
+        if (!continuous && --actionCooldown > 0) return;
         try {
-            GunCompatFacade.Action action = facade.operate(npc, target);
-            actionCooldown = action.delayTicks();
+            GunCompatFacade.Action action = continuous ? facade.operateWatch(npc, target) : facade.operate(npc, target);
+            actionCooldown = continuous ? 1 : action.delayTicks();
             CustomNpcsYsmCompat.LOGGER.info(
                     "[TACZ-WATCH-FIRE] npcId={} targetId={} actionFired={} nextCooldown={}",
                     npc.getId(), target.getId(), action.fired(), actionCooldown);
@@ -102,6 +113,11 @@ public final class YsmTaczWatchGunGoal extends Goal {
         }
         LivingEntity target = command.attackTarget();
         return target != null && target.isAlive() && target != npc ? target : null;
+    }
+
+    private boolean continuousSession(DominionCommandBridge.Snapshot command) {
+        return command.watching() && GunCompat.active(npc)
+                && DominionCommandBridge.watchContinuousFireRequested(npc);
     }
 
     private void trace(LivingEntity target, boolean vanillaCanSee, boolean watchHasClearShot,

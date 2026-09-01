@@ -26,12 +26,14 @@ public final class YsmTaczProneGunGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return validTarget(DominionCommandBridge.snapshot(npc)) != null;
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        return validTarget(command) != null || continuousSession(command);
     }
 
     @Override
     public boolean canContinueToUse() {
-        return validTarget(DominionCommandBridge.snapshot(npc)) != null;
+        DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        return validTarget(command) != null || continuousSession(command);
     }
 
     @Override
@@ -51,15 +53,19 @@ public final class YsmTaczProneGunGoal extends Goal {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
         LivingEntity target = validTarget(command);
         GunCompatFacade facade = GunCompat.facade();
-        if (target == null || facade == null) return;
+        if (facade == null) return;
 
         // Hard invariants for a prone command: no navigation or strafing, only aim and fire.
         npc.setSprinting(false);
         npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
+        if (target == null) {
+            facade.continueWatchFire(npc);
+            return;
+        }
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
         if (NpcGunTargetReaction.blocks(npc, target, settings, command.directAttackOrder())) {
-            stopGun(facade);
+            if (continuousSession(command)) facade.continueWatchFire(npc); else stopGun(facade);
             return;
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
@@ -79,10 +85,15 @@ public final class YsmTaczProneGunGoal extends Goal {
         }
         // A prone ordered attack intentionally ignores the normal ranged-AI distance cap,
         // but still needs a real line of sight so shots cannot pass through terrain.
-        if (!facingReady || !canSee || --actionCooldown > 0) return;
+        if (!facingReady || !canSee) {
+            if (continuousSession(command)) facade.continueWatchFire(npc);
+            return;
+        }
+        boolean continuous = continuousSession(command) && facade.isMachineGun(npc.getMainHandItem());
+        if (!continuous && --actionCooldown > 0) return;
         try {
-            GunCompatFacade.Action action = facade.operate(npc, target);
-            actionCooldown = action.delayTicks();
+            GunCompatFacade.Action action = continuous ? facade.operateWatch(npc, target) : facade.operate(npc, target);
+            actionCooldown = continuous ? 1 : action.delayTicks();
             CustomNpcsYsmCompat.LOGGER.info(
                     "[TACZ-PRONE-GOAL] npcId={} targetId={} actionFired={} nextCooldown={}",
                     npc.getId(), target.getId(), action.fired(), actionCooldown);
@@ -107,6 +118,11 @@ public final class YsmTaczProneGunGoal extends Goal {
         if (!command.prone() || !command.commandedAttack() || !GunCompat.active(npc)) return null;
         LivingEntity target = command.attackTarget();
         return target != null && target.isAlive() && target != npc ? target : null;
+    }
+
+    private boolean continuousSession(DominionCommandBridge.Snapshot command) {
+        return command.prone() && command.watching() && GunCompat.active(npc)
+                && DominionCommandBridge.watchContinuousFireRequested(npc);
     }
 
     private void stopGun(GunCompatFacade facade) {

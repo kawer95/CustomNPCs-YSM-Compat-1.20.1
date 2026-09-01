@@ -59,6 +59,8 @@ public final class Tacz115Compat implements GunCompatFacade {
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
     private final Map<EntityNPCInterface, Integer> lastProneHitTraceTick =
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
+    private final Map<EntityNPCInterface, WatchTriggerState> watchTriggers =
+            java.util.Collections.synchronizedMap(new WeakHashMap<>());
     public Tacz115Compat() {
         MinecraftForge.EVENT_BUS.register(this);
     }
@@ -89,6 +91,16 @@ public final class Tacz115Compat implements GunCompatFacade {
 
     @Override
     public Action operate(EntityNPCInterface shooter, LivingEntity target) {
+        watchTriggers.remove(shooter);
+        return operate(shooter, target, false);
+    }
+
+    @Override
+    public Action operateWatch(EntityNPCInterface shooter, LivingEntity target) {
+        return operate(shooter, target, true);
+    }
+
+    private Action operate(EntityNPCInterface shooter, LivingEntity target, boolean watchFire) {
         ItemStack gunStack = shooter.getMainHandItem();
         IGun gun = IGun.getIGunOrNull(gunStack);
         Optional<CommonGunIndex> indexOptional = gunIndex(gunStack);
@@ -127,12 +139,16 @@ public final class Tacz115Compat implements GunCompatFacade {
         float aimError = aimErrorDegrees(effectiveAccuracy, target.getBbWidth(),
                 Math.sqrt(x * x + z * z), accuracyRoll, magnitudeRoll, positiveError);
         float adjustedYaw = yaw + aimError;
-        ShootResult result = operator.shoot(() -> pitch, () -> adjustedYaw);
+        ShootResult result = watchFire && DominionCommandBridge.watchContinuousFireRequested(shooter) && machineGun
+                ? heldTriggerShoot(shooter, operator, gun, gunStack, data, pitch, adjustedYaw)
+                : operator.shoot(() -> pitch, () -> adjustedYaw);
         if (result == ShootResult.IS_SPRINTING) {
             // If another hook restored a sprint transition during this tick, retry after
             // clearing only that gate. All mechanical weapon gates remain authoritative.
             prepareImmediateFire(shooter, operator);
-            result = operator.shoot(() -> pitch, () -> adjustedYaw);
+            result = watchFire && DominionCommandBridge.watchContinuousFireRequested(shooter) && machineGun
+                    ? heldTriggerShoot(shooter, operator, gun, gunStack, data, pitch, adjustedYaw)
+                    : operator.shoot(() -> pitch, () -> adjustedYaw);
         }
         traceResult(shooter, gunStack, gun, operator, result);
         traceProneAim(shooter, target, gun, operator, result, yaw, pitch, adjustedYaw,
@@ -159,6 +175,48 @@ public final class Tacz115Compat implements GunCompatFacade {
         };
     }
 
+    @Override
+    public Action continueWatchFire(EntityNPCInterface shooter) {
+        WatchTriggerState state = watchTriggers.get(shooter);
+        ItemStack stack = shooter.getMainHandItem();
+        IGun gun = IGun.getIGunOrNull(stack);
+        Optional<CommonGunIndex> index = gunIndex(stack);
+        if (state == null || gun == null || index.isEmpty() || !isMachineGun(stack)
+                || !DominionCommandBridge.watchContinuousFireRequested(shooter)) {
+            watchTriggers.remove(shooter);
+            return Action.waitFor(1);
+        }
+        IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
+        prepareImmediateFire(shooter, operator);
+        ShootResult result = heldTriggerShoot(shooter, operator, gun, stack, index.get().getGunData(), state.pitch, state.yaw);
+        return new Action(1, result == ShootResult.SUCCESS);
+    }
+
+    private ShootResult heldTriggerShoot(EntityNPCInterface shooter, IGunOperator operator, IGun gun,
+                                         ItemStack stack, GunData data, float pitch, float yaw) {
+        String key = String.valueOf(gun.getGunId(stack));
+        WatchTriggerState state = watchTriggers.computeIfAbsent(shooter, ignored -> new WatchTriggerState());
+        if (!key.equals(state.gunKey)) { state.gunKey = key; state.chargeProgress = 0.0F; }
+        state.pitch = pitch;
+        state.yaw = yaw;
+        ChargeView charge = chargeData(data, gun.getFireMode(stack));
+        if (charge == null) return operator.shoot(() -> pitch, () -> yaw);
+        state.chargeProgress = Math.min(charge.maxCharge,
+                state.chargeProgress + Math.max(0.0F, charge.increasePerTick));
+        float threshold = charge.autoOrDelay() ? charge.maxCharge : charge.fireThreshold;
+        if (state.chargeProgress + 0.001F < threshold) return ShootResult.COOL_DOWN;
+        long timestamp = System.currentTimeMillis() - operator.getDataHolder().baseTimestamp;
+        ShootResult result = chargedShoot(operator, () -> pitch, () -> yaw, timestamp, state.chargeProgress);
+        if (result == ShootResult.SUCCESS) {
+            state.chargeProgress = charge.delay() ? 0.0F
+                    : Math.max(0.0F, state.chargeProgress - charge.decreaseOnFire);
+        } else if (result == ShootResult.NO_AMMO || result == ShootResult.IS_RELOADING
+                || result == ShootResult.IS_DRAWING || result == ShootResult.IS_BOLTING) {
+            state.chargeProgress = 0.0F;
+        }
+        return result;
+    }
+
     /** Preserves sprint for movement animation, but makes a requested shot leave it immediately. */
     private static void prepareImmediateFire(EntityNPCInterface shooter, IGunOperator operator) {
         shooter.setSprinting(false);
@@ -176,6 +234,7 @@ public final class Tacz115Compat implements GunCompatFacade {
         IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
         boolean queuedAttack = DominionCommandBridge.hasQueuedAttack(shooter);
         if (shouldExitAim(operator.getSynIsAiming(), queuedAttack, forceExitAim)) operator.aim(false);
+        if (forceExitAim || !DominionCommandBridge.watchContinuousFireRequested(shooter)) watchTriggers.remove(shooter);
         // Goal arbitration and small range changes are transient for CustomNPCs. Cancelling
         // here repeatedly aborted TaCZ's reload state machine after the first magazine.
     }
@@ -208,6 +267,43 @@ public final class Tacz115Compat implements GunCompatFacade {
         traceCrawlStateMismatch(shooter, current, requested, activeGun, gunCanCrawl,
                 onGround, passenger, swimming, spectator);
         operator.crawl(requested);
+    }
+
+    private static final class WatchTriggerState {
+        private String gunKey = "";
+        private float pitch;
+        private float yaw;
+        private float chargeProgress;
+    }
+
+    /** TaCZ 1.1.5 has the four-argument shoot API but no public ChargeData type. */
+    private static ChargeView chargeData(GunData data, FireMode mode) {
+        try {
+            Object charge = data.getClass().getMethod("getChargeData", FireMode.class).invoke(data, mode);
+            if (charge == null) return null;
+            Class<?> type = charge.getClass();
+            return new ChargeView(number(type, charge, "getMaxCharge"), number(type, charge, "getIncreasePerTick"),
+                    number(type, charge, "getFireThreshold"), number(type, charge, "getDecreaseOnFire"),
+                    String.valueOf(type.getMethod("getChargeType").invoke(charge)));
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) { return null; }
+    }
+    private static float number(Class<?> type, Object value, String method) throws ReflectiveOperationException {
+        return ((Number) type.getMethod(method).invoke(value)).floatValue();
+    }
+    private static ShootResult chargedShoot(IGunOperator operator, java.util.function.Supplier<Float> pitch,
+                                             java.util.function.Supplier<Float> yaw, long timestamp, float progress) {
+        try {
+            Object result = operator.getClass().getMethod("shoot", java.util.function.Supplier.class,
+                    java.util.function.Supplier.class, long.class, float.class)
+                    .invoke(operator, pitch, yaw, timestamp, progress);
+            if (result instanceof ShootResult shootResult) return shootResult;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) { }
+        return operator.shoot(pitch, yaw, timestamp);
+    }
+    private record ChargeView(float maxCharge, float increasePerTick, float fireThreshold,
+                              float decreaseOnFire, String type) {
+        boolean autoOrDelay() { return "AUTO".equals(type) || "DELAY".equals(type); }
+        boolean delay() { return "DELAY".equals(type); }
     }
 
     @Override
