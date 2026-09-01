@@ -113,13 +113,14 @@ public final class YsmTaczGunGoal extends Goal {
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
+        boolean facingReady;
         if (command.commandedAttack()) {
-            NpcGunAimLock.track(npc, target);
+            facingReady = NpcGunAimLock.track(npc, target);
         } else {
             // TaCZ computes its bullet yaw directly from this target. Force the native CNPC
             // body to that same yaw even for a small arc, rather than letting CustomNPCs rotate
             // only the head while the gun, YSM model and flashlight remain visually behind.
-            NpcGunAimLock.alignForShot(npc, target);
+            facingReady = NpcGunAimLock.alignForShot(npc, target);
         }
         double distance = npc.distanceTo(target);
         double desired = effectiveRange();
@@ -186,11 +187,11 @@ public final class YsmTaczGunGoal extends Goal {
         }
 
         traceRetreat(target, retreating, maneuverName, distance, desired, canSee, command);
-        boolean canFire = command.watching()
+        boolean canFire = facingReady && (command.watching()
                 ? canSee
-                : CommandGunTactics.canFire(command.prone(), canSee, distance, desired);
+                : CommandGunTactics.canFire(command.prone(), canSee, distance, desired));
         traceWatchFireGate(command, target, desired, vanillaCanSee, watchHasClearShot, canFire,
-                canFire ? "READY" : "NO_CLEAR_SHOT");
+                canFire ? "READY" : !facingReady ? "AIM_TURNING" : "NO_CLEAR_SHOT");
         if (canFire && --actionCooldown <= 0) {
             try {
                 // TaCZ rejects a fire request while sprinting.  A command may have just

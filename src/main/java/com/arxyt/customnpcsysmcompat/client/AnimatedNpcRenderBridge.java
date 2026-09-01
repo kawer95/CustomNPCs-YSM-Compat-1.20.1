@@ -16,6 +16,7 @@ import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import com.arxyt.customnpcsysmcompat.data.YsmTweakProfile;
 import com.arxyt.customnpcsysmcompat.mixin.EntitySharedFlagAccessor;
+import com.tacz.guns.api.entity.IGunOperator;
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
@@ -164,8 +165,9 @@ public final class AnimatedNpcRenderBridge {
         }
         // A retreating gun NPC moves opposite to its aim. Do not turn the YSM proxy
         // toward that displacement or it appears to run around and shoot backwards.
+        boolean gunAimLocked = gunAimLocked(npc);
         boolean backpedalling = holder.movementTracker.backpedalling(movement, npc.yHeadRot);
-        float targetBodyYaw = movement.walking()
+        float targetBodyYaw = gunAimLocked ? npc.yHeadRot : movement.walking()
                 ? (backpedalling ? npc.yHeadRot : movement.movementYaw())
                 : npc.yBodyRot;
         traceRetreatRender(holder, npc, movement, backpedalling, targetBodyYaw);
@@ -394,6 +396,16 @@ public final class AnimatedNpcRenderBridge {
                     npc.getId(), npc.tickCount, frame.state(), player.swinging);
         }
         holder.attackDebugActive = attack.active();
+    }
+
+    private static boolean gunAimLocked(EntityNPCInterface npc) {
+        if (!GunCompat.active(npc)) return false;
+        try {
+            IGunOperator operator = IGunOperator.fromLivingEntity(npc);
+            return operator.getSynAimingProgress() > 0.0F;
+        } catch (RuntimeException | LinkageError ignored) {
+            return false;
+        }
     }
 
     private static boolean claimDiagnosticTick(AnimatedProxy holder, EntityNPCInterface npc) {

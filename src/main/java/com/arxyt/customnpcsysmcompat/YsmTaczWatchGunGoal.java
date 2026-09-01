@@ -65,12 +65,14 @@ public final class YsmTaczWatchGunGoal extends Goal {
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
-        NpcGunAimLock.track(npc, target);
+        boolean facingReady = NpcGunAimLock.track(npc, target);
 
         boolean vanillaCanSee = npc.getSensing().hasLineOfSight(target);
         boolean watchHasClearShot = DominionCommandBridge.watchHasClearShot(npc, target, vanillaCanSee);
-        boolean canFire = CommandGunTactics.effectiveLineOfSight(true, vanillaCanSee, watchHasClearShot);
-        trace(target, vanillaCanSee, watchHasClearShot, canFire, canFire ? "READY" : "NO_CLEAR_SHOT");
+        boolean canFire = facingReady
+                && CommandGunTactics.effectiveLineOfSight(true, vanillaCanSee, watchHasClearShot);
+        trace(target, vanillaCanSee, watchHasClearShot, canFire,
+                canFire ? "READY" : !facingReady ? "AIM_TURNING" : "NO_CLEAR_SHOT");
         if (!canFire || --actionCooldown > 0) return;
         try {
             GunCompatFacade.Action action = facade.operate(npc, target);

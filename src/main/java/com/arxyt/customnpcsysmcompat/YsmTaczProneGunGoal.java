@@ -64,7 +64,7 @@ public final class YsmTaczProneGunGoal extends Goal {
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
-        NpcGunAimLock.track(npc, target);
+        boolean facingReady = NpcGunAimLock.track(npc, target);
 
         boolean vanillaCanSee = npc.getSensing().hasLineOfSight(target);
         boolean watchHasClearShot = command.watching()
@@ -79,7 +79,7 @@ public final class YsmTaczProneGunGoal extends Goal {
         }
         // A prone ordered attack intentionally ignores the normal ranged-AI distance cap,
         // but still needs a real line of sight so shots cannot pass through terrain.
-        if (!canSee || --actionCooldown > 0) return;
+        if (!facingReady || !canSee || --actionCooldown > 0) return;
         try {
             GunCompatFacade.Action action = facade.operate(npc, target);
             actionCooldown = action.delayTicks();

@@ -57,10 +57,10 @@ public final class YsmTaczSentryGunGoal extends Goal {
         }
         NpcGunTargetReaction.noteTarget(npc, target, settings);
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
-        NpcGunAimLock.alignForShot(npc, target);
+        boolean facingReady = NpcGunAimLock.alignForShot(npc, target);
 
         double range = Math.max(1.0D, npc.stats.ranged.getRange());
-        if (npc.distanceTo(target) > range || !npc.getSensing().hasLineOfSight(target)
+        if (!facingReady || npc.distanceTo(target) > range || !npc.getSensing().hasLineOfSight(target)
                 || --actionCooldown > 0) return;
         try {
             actionCooldown = facade.operate(npc, target).delayTicks();

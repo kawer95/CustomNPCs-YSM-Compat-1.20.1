@@ -20,4 +20,13 @@ final class NpcGunAimLockTest {
         assertTrue(Float.isNaN(NpcGunAimLock.targetYaw(0.0D, 0.0D)));
         assertTrue(Float.isNaN(NpcGunAimLock.targetYaw(Double.NaN, 1.0D)));
     }
+
+    @Test
+    void visualTurnBarrierMatchesClientBodyTurnRateAndWrapsAtOneEighty() {
+        assertEquals(0, NpcGunAimLock.visualTurnDelayTicks(20.0F, 20.0F));
+        assertEquals(1, NpcGunAimLock.visualTurnDelayTicks(0.0F, 30.0F));
+        assertEquals(2, NpcGunAimLock.visualTurnDelayTicks(0.0F, 31.0F));
+        assertEquals(1, NpcGunAimLock.visualTurnDelayTicks(170.0F, -170.0F));
+        assertEquals(6, NpcGunAimLock.visualTurnDelayTicks(0.0F, 180.0F));
+    }
 }

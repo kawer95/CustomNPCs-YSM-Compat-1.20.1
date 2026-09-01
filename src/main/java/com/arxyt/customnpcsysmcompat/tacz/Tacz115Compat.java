@@ -6,6 +6,7 @@ import com.arxyt.customnpcsysmcompat.DominionCombatBalance;
 import com.arxyt.customnpcsysmcompat.GunCompatFacade;
 import com.arxyt.customnpcsysmcompat.GunCompat;
 import com.arxyt.customnpcsysmcompat.NpcCrawlState;
+import com.arxyt.customnpcsysmcompat.NpcGunAimLock;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.tacz.guns.api.entity.ShootResult;
@@ -109,10 +110,11 @@ public final class Tacz115Compat implements GunCompatFacade {
         }
 
         double x = target.getX() - shooter.getX();
-        double y = target.getEyeY() - shooter.getEyeY();
         double z = target.getZ() - shooter.getZ();
-        float yaw = (float) -Math.toDegrees(Math.atan2(x, z));
-        float pitch = (float) -Math.toDegrees(Math.atan2(y, Math.sqrt(x * x + z * z)));
+        NpcGunAimLock.AimSolution lockedAim = NpcGunAimLock.solutionFor(shooter, target);
+        if (!lockedAim.valid()) return Action.waitFor(1);
+        float yaw = lockedAim.yaw();
+        float pitch = lockedAim.pitch();
         int accuracyRoll = shooter.getRandom().nextInt(100);
         double magnitudeRoll = shooter.getRandom().nextDouble();
         boolean positiveError = shooter.getRandom().nextBoolean();
