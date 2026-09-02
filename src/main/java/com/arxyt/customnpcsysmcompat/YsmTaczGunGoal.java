@@ -141,12 +141,18 @@ public final class YsmTaczGunGoal extends Goal {
             npc.getNavigation().stop();
             npc.getMoveControl().strafe(0.0F, 0.0F);
         } else if (command.active()) {
+            boolean breachEntering = DominionCommandBridge.isBreachEntering(npc);
             CommandGunTactics.Maneuver maneuver = command.watching()
                     ? CommandGunTactics.Maneuver.SENTRY
                     : CommandGunTactics.decideControlled(
                             command.commandedAttack(), canSee, distance, desired, command.closeQuarters(), command.prone());
-            maneuverName = maneuver.name();
-            switch (maneuver) {
+            maneuverName = breachEntering ? "BREACH_ENTRY" : maneuver.name();
+            if (breachEntering) {
+                // Dominion owns the doorway path. Aim and fire without replacing that path with
+                // pursue, retreat or strafe movement until the unit has crossed the door.
+                strafeTime = -1;
+                backwards = false;
+            } else switch (maneuver) {
                 case PURSUE -> {
                     strafeTime = -1;
                     double navigationSpeed = DominionCommandBridge.commandMovementSpeed(npc, 1.0D);
