@@ -270,10 +270,10 @@ public final class YsmTaczGunGoal extends Goal {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
         if (command.watching()) {
             return DominionCommandBridge.watchRange(npc,
-                    Math.max(2.0D, npc.stats.ranged.getRange() * 2.0D));
+                    Math.max(2.0D, TaczCombatSettingsBridge.range(npc, npc.stats.ranged.getRange()) * 2.0D));
         }
         if (command.active()) {
-            return Math.max(1.0D, npc.stats.ranged.getRange());
+            return Math.max(1.0D, TaczCombatSettingsBridge.range(npc, npc.stats.ranged.getRange()));
         }
         GunCompatFacade facade = GunCompat.facade();
         if (facade == null) return 1.0D;
@@ -288,6 +288,7 @@ public final class YsmTaczGunGoal extends Goal {
             GunCompat.reportRuntimeError(error);
             gunRange = YsmTaczConfig.MEDIUM_DISTANCE.get();
         }
-        return Math.max(1.0D, Math.min(gunRange, npc.stats.aggroRange));
+        return Math.max(1.0D, TaczCombatSettingsBridge.range(npc,
+                Math.min(gunRange, npc.stats.aggroRange)));
     }
 }

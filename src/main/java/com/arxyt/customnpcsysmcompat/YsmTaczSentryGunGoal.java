@@ -59,7 +59,7 @@ public final class YsmTaczSentryGunGoal extends Goal {
         npc.getLookControl().setLookAt(target, 90.0F, 90.0F);
         boolean facingReady = NpcGunAimLock.alignForShot(npc, target);
 
-        double range = Math.max(1.0D, npc.stats.ranged.getRange());
+        double range = Math.max(1.0D, TaczCombatSettingsBridge.range(npc, npc.stats.ranged.getRange()));
         if (!facingReady || npc.distanceTo(target) > range || !npc.getSensing().hasLineOfSight(target)
                 || --actionCooldown > 0) return;
         try {
@@ -92,6 +92,7 @@ public final class YsmTaczSentryGunGoal extends Goal {
         if (!command.stationarySentry() || !GunCompat.active(npc)) return null;
         LivingEntity target = npc.getTarget();
         if (target == null || !target.isAlive() || target == npc) return null;
-        return npc.distanceTo(target) <= Math.max(1.0D, npc.stats.ranged.getRange()) ? target : null;
+        return npc.distanceTo(target) <= Math.max(1.0D,
+                TaczCombatSettingsBridge.range(npc, npc.stats.ranged.getRange())) ? target : null;
     }
 }

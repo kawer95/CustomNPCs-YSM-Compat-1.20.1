@@ -7,6 +7,7 @@ import com.arxyt.customnpcsysmcompat.GunCompatFacade;
 import com.arxyt.customnpcsysmcompat.GunCompat;
 import com.arxyt.customnpcsysmcompat.NpcCrawlState;
 import com.arxyt.customnpcsysmcompat.NpcGunAimLock;
+import com.arxyt.customnpcsysmcompat.TaczCombatSettingsBridge;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.tacz.guns.api.entity.ShootResult;
@@ -105,6 +106,7 @@ public final class Tacz115Compat implements GunCompatFacade {
         IGun gun = IGun.getIGunOrNull(gunStack);
         Optional<CommonGunIndex> indexOptional = gunIndex(gunStack);
         if (gun == null || indexOptional.isEmpty()) return Action.waitFor(100);
+        if (!TaczCombatSettingsBridge.allowsShot(shooter)) return Action.waitFor(1);
 
         CommonGunIndex index = indexOptional.get();
         GunData data = index.getGunData();
@@ -126,7 +128,8 @@ public final class Tacz115Compat implements GunCompatFacade {
         DominionCombatBalance.Settings balance = DominionCombatBalance.settings();
         boolean machineGun = GunTabType.MG.name().equalsIgnoreCase(index.getType());
         boolean sniperRifle = GunTabType.SNIPER.name().equalsIgnoreCase(index.getType());
-        int effectiveAccuracy = effectiveAccuracy(shooter.stats.ranged.getAccuracy(),
+        int effectiveAccuracy = effectiveAccuracy(TaczCombatSettingsBridge.accuracy(shooter,
+                        shooter.stats.ranged.getAccuracy()),
                 balance.available() && balance.customNpcStandingMachineGunAccuracyPenalty(), machineGun,
                 sniperRifle, operator.getDataHolder().isCrawling);
         float aimError = aimErrorDegrees(effectiveAccuracy, target.getBbWidth(),
@@ -156,7 +159,8 @@ public final class Tacz115Compat implements GunCompatFacade {
                 aimError, accuracyRoll);
 
         return switch (result) {
-            case SUCCESS -> new Action(successDelay(gun, gunStack, shooter), true);
+            case SUCCESS -> new Action(TaczCombatSettingsBridge.recordSuccessfulShot(shooter,
+                    successDelay(gun, gunStack, shooter)), true);
             case NOT_DRAW -> Action.waitFor(1);
             case NEED_BOLT -> {
                 operator.bolt();
@@ -184,10 +188,13 @@ public final class Tacz115Compat implements GunCompatFacade {
             watchTriggers.remove(shooter);
             return Action.waitFor(1);
         }
+        if (!TaczCombatSettingsBridge.allowsShot(shooter)) return Action.waitFor(1);
         IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
         prepareImmediateFire(shooter, operator);
         ShootResult result = heldTriggerShoot(shooter, operator, gun, stack, index.get().getGunData(), state.pitch, state.yaw);
-        return new Action(1, result == ShootResult.SUCCESS);
+        return result == ShootResult.SUCCESS
+                ? new Action(TaczCombatSettingsBridge.recordSuccessfulShot(shooter, 1), true)
+                : new Action(1, false);
     }
 
     private ShootResult heldTriggerShoot(EntityNPCInterface shooter, IGunOperator operator, IGun gun,
@@ -242,6 +249,7 @@ public final class Tacz115Compat implements GunCompatFacade {
         IGunOperator operator = IGunOperator.fromLivingEntity(shooter);
         boolean queuedAttack = DominionCommandBridge.hasQueuedAttack(shooter);
         if (shouldExitAim(operator.getSynIsAiming(), queuedAttack, forceExitAim)) operator.aim(false);
+        if (forceExitAim) TaczCombatSettingsBridge.resetPattern(shooter);
         if (forceExitAim || !DominionCommandBridge.watchContinuousFireRequested(shooter)) watchTriggers.remove(shooter);
         // Goal arbitration and small range changes are transient for CustomNPCs. Cancelling
         // here repeatedly aborted TaCZ's reload state machine after the first magazine.
@@ -468,7 +476,8 @@ public final class Tacz115Compat implements GunCompatFacade {
                         "note=ray_uses_npc_eye_only",
                 shooter.getId(), shooter.tickCount, gun.getGunId(shooter.getMainHandItem()), target.getId(),
                 target.getClass().getName(), result, NpcCrawlState.isCrawling(shooter),
-                operator.getDataHolder().isCrawling, operator.getSynIsAiming(), shooter.stats.ranged.getAccuracy(),
+                operator.getDataHolder().isCrawling, operator.getSynIsAiming(),
+                TaczCombatSettingsBridge.accuracy(shooter, shooter.stats.ranged.getAccuracy()),
                 accuracyRoll, decimal(exactYaw), decimal(adjustedYaw), decimal(aimError), decimal(eyePitch),
                 decimal(centerPitch), decimal(shooter.getEyeY()), vector(origin), decimal(target.getEyeY()),
                 box, decimal(box.getXsize()), decimal(box.getYsize()), decimal(box.getZsize()),
