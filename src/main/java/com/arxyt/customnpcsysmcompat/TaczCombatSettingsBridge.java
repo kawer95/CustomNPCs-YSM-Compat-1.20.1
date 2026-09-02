@@ -20,13 +20,21 @@ public final class TaczCombatSettingsBridge {
     private TaczCombatSettingsBridge() { }
 
     public static int range(EntityNPCInterface npc, int fallback) {
+        if (!configured(npc)) return fallback;
         Object value = invoke(npc, "range");
         return value instanceof Number number ? Math.max(1, number.intValue()) : fallback;
     }
 
     public static int accuracy(EntityNPCInterface npc, int fallback) {
+        if (!configured(npc)) return fallback;
         Object value = invoke(npc, "accuracy");
         return value instanceof Number number ? Math.max(0, Math.min(100, number.intValue())) : fallback;
+    }
+
+    /** True only after the CNPC TaCZ editor has explicitly saved a tactical policy. */
+    public static boolean configured(EntityNPCInterface npc) {
+        Object value = invoke(npc, "configured");
+        return value instanceof Boolean configured && configured;
     }
 
     public static boolean allowsShot(EntityNPCInterface npc) {
@@ -51,6 +59,7 @@ public final class TaczCombatSettingsBridge {
                 Class<?> api = Class.forName(API, false, TaczCombatSettingsBridge.class.getClassLoader());
                 resolved = new Methods(api.getMethod("range", EntityNPCInterface.class),
                         api.getMethod("accuracy", EntityNPCInterface.class),
+                        api.getMethod("configured", EntityNPCInterface.class),
                         api.getMethod("allowsShot", EntityNPCInterface.class),
                         api.getMethod("recordSuccessfulShot", EntityNPCInterface.class),
                         api.getMethod("resetPattern", EntityNPCInterface.class));
@@ -59,6 +68,7 @@ public final class TaczCombatSettingsBridge {
             return switch (member) {
                 case "range" -> resolved.range.invoke(null, npc);
                 case "accuracy" -> resolved.accuracy.invoke(null, npc);
+                case "configured" -> resolved.configured.invoke(null, npc);
                 case "allowsShot" -> resolved.allowsShot.invoke(null, npc);
                 case "recordSuccessfulShot" -> resolved.recordSuccessfulShot.invoke(null, npc);
                 case "resetPattern" -> { resolved.resetPattern.invoke(null, npc); yield null; }
@@ -77,6 +87,6 @@ public final class TaczCombatSettingsBridge {
         }
     }
 
-    private record Methods(Method range, Method accuracy, Method allowsShot,
+    private record Methods(Method range, Method accuracy, Method configured, Method allowsShot,
                            Method recordSuccessfulShot, Method resetPattern) { }
 }
