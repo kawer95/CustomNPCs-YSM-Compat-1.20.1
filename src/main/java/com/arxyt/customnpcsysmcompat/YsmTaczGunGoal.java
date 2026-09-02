@@ -142,7 +142,8 @@ public final class YsmTaczGunGoal extends Goal {
             npc.getMoveControl().strafe(0.0F, 0.0F);
         } else if (command.active()) {
             boolean breachEntering = DominionCommandBridge.isBreachEntering(npc);
-            CommandGunTactics.Maneuver maneuver = command.watching()
+            boolean breachStationary = DominionCommandBridge.isBreachStationary(npc);
+            CommandGunTactics.Maneuver maneuver = command.watching() || breachStationary
                     ? CommandGunTactics.Maneuver.SENTRY
                     : CommandGunTactics.decideControlled(
                             command.commandedAttack(), canSee, distance, desired, command.closeQuarters(), command.prone());

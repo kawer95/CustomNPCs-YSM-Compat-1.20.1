@@ -51,6 +51,7 @@ public final class DominionCommandBridge {
                     optionalUnreflect(lookup, api, "bypassesTargetReaction", Mob.class),
                     optionalUnreflect(lookup, api, "isBreachAssault", Mob.class),
                     optionalUnreflect(lookup, api, "isBreachEntering", Mob.class),
+                    optionalUnreflect(lookup, api, "isBreachStationary", Mob.class),
                     optionalUnreflect(lookup, api, "breachAimPoint", Mob.class, LivingEntity.class),
                     optionalUnreflect(lookup, watchService, "continuousFireRequested", Mob.class),
                     optionalUnreflect(lookup, reloadApi, "isReloadActive", Mob.class));
@@ -144,6 +145,18 @@ public final class DominionCommandBridge {
         if (current == null || current.breachEntering == null || unit == null || unit.level().isClientSide) return false;
         try {
             Object value = current.breachEntering.invoke(unit);
+            return value instanceof Boolean enabled && enabled;
+        } catch (Throwable error) {
+            report(error);
+            return false;
+        }
+    }
+
+    public static boolean isBreachStationary(Mob unit) {
+        Access current = access;
+        if (current == null || current.breachStationary == null || unit == null || unit.level().isClientSide) return false;
+        try {
+            Object value = current.breachStationary.invoke(unit);
             return value instanceof Boolean enabled && enabled;
         } catch (Throwable error) {
             report(error);
@@ -321,7 +334,8 @@ public final class DominionCommandBridge {
                            MethodHandle attackTarget,
                            MethodHandle movementSpeed, MethodHandle watchRange,
                            MethodHandle watchHasClearShot, MethodHandle bypassTargetReaction,
-                            MethodHandle breachAssault, MethodHandle breachEntering, MethodHandle breachAimPoint,
+                            MethodHandle breachAssault, MethodHandle breachEntering, MethodHandle breachStationary,
+                            MethodHandle breachAimPoint,
                            MethodHandle watchContinuousFire,
                            MethodHandle reloadActive) {
     }
