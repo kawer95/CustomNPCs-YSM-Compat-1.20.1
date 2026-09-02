@@ -64,7 +64,8 @@ public final class YsmTaczProneGunGoal extends Goal {
             return;
         }
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
-        if (NpcGunTargetReaction.blocks(npc, target, settings, command.directAttackOrder())) {
+        if (NpcGunTargetReaction.blocks(npc, target, settings,
+                command.directAttackOrder() || DominionCommandBridge.bypassesTargetReaction(npc))) {
             if (continuousSession(command)) facade.continueWatchFire(npc); else stopGun(facade);
             return;
         }
@@ -73,9 +74,12 @@ public final class YsmTaczProneGunGoal extends Goal {
         boolean facingReady = NpcGunAimLock.track(npc, target);
 
         boolean vanillaCanSee = npc.getSensing().hasLineOfSight(target);
+        boolean breach = DominionCommandBridge.isBreachAssault(npc);
         boolean watchHasClearShot = command.watching()
                 && DominionCommandBridge.watchHasClearShot(npc, target, vanillaCanSee);
-        boolean canSee = CommandGunTactics.effectiveLineOfSight(
+        boolean breachHasClearShot = breach
+                && DominionCommandBridge.breachAimPoint(npc, target, vanillaCanSee ? target.getEyePosition() : null) != null;
+        boolean canSee = breach ? breachHasClearShot : CommandGunTactics.effectiveLineOfSight(
                 command.watching(), vanillaCanSee, watchHasClearShot);
         if (npc.tickCount % 20 == 0) {
             CustomNpcsYsmCompat.LOGGER.info(

@@ -47,7 +47,8 @@ public final class YsmTaczSentryGunGoal extends Goal {
         npc.getNavigation().stop();
         npc.getMoveControl().strafe(0.0F, 0.0F);
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
-        if (NpcGunTargetReaction.blocks(npc, target, settings, false)) {
+        if (NpcGunTargetReaction.blocks(npc, target, settings,
+                DominionCommandBridge.bypassesTargetReaction(npc))) {
             try {
                 facade.stop(npc);
             } catch (Throwable error) {

@@ -4,6 +4,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.phys.Vec3;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -18,6 +19,7 @@ public final class DominionCommandBridge {
     private static final String DOMINION_DIRECT_ATTACK = "DominionOfflineAttack";
     private static final String ATTACK_ORDER = "attack";
     private static final String WATCH_ORDER = "watch";
+    private static final String BREACH_ORDER = "breach";
     private static final Snapshot UNAVAILABLE = new Snapshot(false, false, false, false, false, false, false, false, null);
     private static final AtomicBoolean ERROR_REPORTED = new AtomicBoolean();
     private static volatile Access access;
@@ -46,6 +48,9 @@ public final class DominionCommandBridge {
                     optionalUnreflect(lookup, api, "commandMovementSpeed", Mob.class),
                     optionalUnreflect(lookup, api, "watchRange", Mob.class, int.class),
                     optionalUnreflect(lookup, api, "watchHasClearShot", Mob.class, LivingEntity.class),
+                    optionalUnreflect(lookup, api, "bypassesTargetReaction", Mob.class),
+                    optionalUnreflect(lookup, api, "isBreachAssault", Mob.class),
+                    optionalUnreflect(lookup, api, "breachAimPoint", Mob.class, LivingEntity.class),
                     optionalUnreflect(lookup, watchService, "continuousFireRequested", Mob.class),
                     optionalUnreflect(lookup, reloadApi, "isReloadActive", Mob.class));
             CustomNpcsYsmCompat.LOGGER.info("Dominion Sword command coordination enabled");
@@ -103,7 +108,47 @@ public final class DominionCommandBridge {
     }
 
     static boolean hasQueuedAttack(String order, int queueEntries) {
-        return (ATTACK_ORDER.equals(order) || WATCH_ORDER.equals(order)) && queueEntries > 0;
+        return (ATTACK_ORDER.equals(order) || WATCH_ORDER.equals(order) || BREACH_ORDER.equals(order))
+                && queueEntries > 0;
+    }
+
+    public static boolean bypassesTargetReaction(Mob unit) {
+        Access current = access;
+        if (current == null || current.bypassTargetReaction == null || unit == null || unit.level().isClientSide) {
+            return false;
+        }
+        try {
+            Object value = current.bypassTargetReaction.invoke(unit);
+            return value instanceof Boolean enabled && enabled;
+        } catch (Throwable error) {
+            report(error);
+            return false;
+        }
+    }
+
+    public static boolean isBreachAssault(Mob unit) {
+        Access current = access;
+        if (current == null || current.breachAssault == null || unit == null || unit.level().isClientSide) return false;
+        try {
+            Object value = current.breachAssault.invoke(unit);
+            return value instanceof Boolean enabled && enabled;
+        } catch (Throwable error) {
+            report(error);
+            return false;
+        }
+    }
+
+    public static Vec3 breachAimPoint(Mob unit, LivingEntity target, Vec3 fallback) {
+        Access current = access;
+        if (current == null || current.breachAimPoint == null || unit == null || target == null
+                || unit.level().isClientSide) return fallback;
+        try {
+            Object value = current.breachAimPoint.invoke(unit, target);
+            return value instanceof Vec3 point ? point : null;
+        } catch (Throwable error) {
+            report(error);
+            return fallback;
+        }
     }
 
     /**
@@ -262,7 +307,9 @@ public final class DominionCommandBridge {
                            MethodHandle prone, MethodHandle watching,
                            MethodHandle attackTarget,
                            MethodHandle movementSpeed, MethodHandle watchRange,
-                           MethodHandle watchHasClearShot, MethodHandle watchContinuousFire,
+                           MethodHandle watchHasClearShot, MethodHandle bypassTargetReaction,
+                           MethodHandle breachAssault, MethodHandle breachAimPoint,
+                           MethodHandle watchContinuousFire,
                            MethodHandle reloadActive) {
     }
 }

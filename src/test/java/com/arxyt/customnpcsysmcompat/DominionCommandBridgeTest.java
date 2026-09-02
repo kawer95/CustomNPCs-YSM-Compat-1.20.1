@@ -13,6 +13,7 @@ final class DominionCommandBridgeTest {
         assertTrue(DominionCommandBridge.hasQueuedAttack("attack", 1));
         assertTrue(DominionCommandBridge.hasQueuedAttack("attack", 5));
         assertTrue(DominionCommandBridge.hasQueuedAttack("watch", 1));
+        assertTrue(DominionCommandBridge.hasQueuedAttack("breach", 1));
         assertFalse(DominionCommandBridge.hasQueuedAttack("attack", 0));
         assertFalse(DominionCommandBridge.hasQueuedAttack("watch", 0));
         assertFalse(DominionCommandBridge.hasQueuedAttack("hold", 2));

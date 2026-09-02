@@ -99,7 +99,8 @@ public final class YsmTaczGunGoal extends Goal {
         if (target == null) return;
         if (command.commandedAttack() && npc.getTarget() != target) npc.setTarget(target);
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
-        if (NpcGunTargetReaction.blocks(npc, target, settings, command.directAttackOrder())) {
+        if (NpcGunTargetReaction.blocks(npc, target, settings,
+                command.directAttackOrder() || DominionCommandBridge.bypassesTargetReaction(npc))) {
             traceWatchFireGate(command, target, effectiveRange(), false, false, false, "TARGET_REACTION");
             if (command.active()) npc.setSprinting(false);
             npc.getNavigation().stop();
@@ -125,9 +126,12 @@ public final class YsmTaczGunGoal extends Goal {
         double distance = npc.distanceTo(target);
         double desired = effectiveRange();
         boolean vanillaCanSee = npc.getSensing().hasLineOfSight(target);
+        boolean breach = DominionCommandBridge.isBreachAssault(npc);
         boolean watchHasClearShot = command.watching()
                 && DominionCommandBridge.watchHasClearShot(npc, target, vanillaCanSee);
-        boolean canSee = CommandGunTactics.effectiveLineOfSight(
+        boolean breachHasClearShot = breach
+                && DominionCommandBridge.breachAimPoint(npc, target, vanillaCanSee ? target.getEyePosition() : null) != null;
+        boolean canSee = breach ? breachHasClearShot : CommandGunTactics.effectiveLineOfSight(
                 command.watching(), vanillaCanSee, watchHasClearShot);
         boolean retreating = false;
         String maneuverName = npc.isPassenger() ? "PASSENGER" : "UNDECIDED";
@@ -268,6 +272,7 @@ public final class YsmTaczGunGoal extends Goal {
 
     private double effectiveRange() {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
+        if (DominionCommandBridge.isBreachAssault(npc)) return 64.0D;
         if (command.watching()) {
             return DominionCommandBridge.watchRange(npc,
                     Math.max(2.0D, TaczCombatSettingsBridge.range(npc, npc.stats.ranged.getRange()) * 2.0D));

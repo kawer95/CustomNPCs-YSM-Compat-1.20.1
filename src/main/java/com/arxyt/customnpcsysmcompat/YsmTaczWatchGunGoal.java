@@ -64,7 +64,8 @@ public final class YsmTaczWatchGunGoal extends Goal {
         if (npc.getTarget() != target) npc.setTarget(target);
 
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
-        if (NpcGunTargetReaction.blocks(npc, target, settings, false)) {
+        if (NpcGunTargetReaction.blocks(npc, target, settings,
+                DominionCommandBridge.bypassesTargetReaction(npc))) {
             trace(target, false, false, false, "TARGET_REACTION");
             if (continuousSession(command)) facade.continueWatchFire(npc); else stopGun(facade);
             return;
