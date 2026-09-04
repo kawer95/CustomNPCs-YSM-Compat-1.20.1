@@ -94,9 +94,9 @@ public final class YsmTaczSentryGunGoal extends Goal {
         if (command.watching() || !GunCompat.active(npc) || npc.isPassenger()) return null;
         if (command.active() && !command.stationarySentry()) return null;
         LivingEntity current = idleTarget;
-        if (!IdleNpcTargeting.retained(npc, current)) {
+        if (!IdleNpcTargeting.valid(npc, current)) {
             current = npc.getTarget();
-            if (!IdleNpcTargeting.retained(npc, current)) current = null;
+            if (!IdleNpcTargeting.valid(npc, current)) current = null;
         }
         if (current == null && npc.tickCount >= nextScanTick) {
             nextScanTick = npc.tickCount + 5 + Math.floorMod(npc.getId(), 5);

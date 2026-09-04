@@ -46,10 +46,15 @@ final class IdleNpcTargeting {
                 && !technical(target) && !sharesVehicle(npc, target);
     }
 
+    static boolean valid(EntityNPCInterface npc, LivingEntity target) {
+        return npc != null && target != null
+                && eligible(npc, target, new NPCAttackSelector(npc));
+    }
+
     private static boolean eligible(EntityNPCInterface npc, LivingEntity target, NPCAttackSelector selector) {
         if (!retained(npc, target) || !npc.getSensing().hasLineOfSight(target)) return false;
         Boolean dominionDecision = DominionIdleTargetBridge.isEnemy(npc, target);
-        if (dominionDecision != null) return dominionDecision;
+        if (Boolean.TRUE.equals(dominionDecision)) return true;
         if (selector.isEntityApplicable(target)) return true;
         if (target instanceof EntityNPCInterface other) {
             return !other.isKilled() && npc.advanced.attackOtherFactions
