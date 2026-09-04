@@ -22,11 +22,21 @@ final class NpcGunAimLockTest {
     }
 
     @Test
-    void visualTurnBarrierMatchesClientBodyTurnRateAndWrapsAtOneEighty() {
-        assertEquals(0, NpcGunAimLock.visualTurnDelayTicks(20.0F, 20.0F));
-        assertEquals(1, NpcGunAimLock.visualTurnDelayTicks(0.0F, 30.0F));
-        assertEquals(2, NpcGunAimLock.visualTurnDelayTicks(0.0F, 31.0F));
-        assertEquals(1, NpcGunAimLock.visualTurnDelayTicks(170.0F, -170.0F));
-        assertEquals(6, NpcGunAimLock.visualTurnDelayTicks(0.0F, 180.0F));
+    void turnAdvancesInVisibleStepsAndUsesShortestWrappedPath() {
+        assertEquals(20.0F, NpcGunAimLock.stepAngle(0.0F, 90.0F, 20.0F), 0.001F);
+        assertEquals(40.0F, NpcGunAimLock.stepAngle(20.0F, 90.0F, 20.0F), 0.001F);
+        assertEquals(90.0F, NpcGunAimLock.stepAngle(80.0F, 90.0F, 20.0F), 0.001F);
+        assertEquals(190.0F, NpcGunAimLock.stepAngle(170.0F, -170.0F, 20.0F), 0.001F);
+    }
+
+    @Test
+    void fireGateWaitsForBodyHeadAndPitchInsteadOfElapsedTime() {
+        assertTrue(NpcGunAimLock.aligned(1.0F, -1.0F, 2.0F, 0.0F, 0.0F));
+        org.junit.jupiter.api.Assertions.assertFalse(
+                NpcGunAimLock.aligned(3.0F, 0.0F, 0.0F, 0.0F, 0.0F));
+        org.junit.jupiter.api.Assertions.assertFalse(
+                NpcGunAimLock.aligned(0.0F, 3.0F, 0.0F, 0.0F, 0.0F));
+        org.junit.jupiter.api.Assertions.assertFalse(
+                NpcGunAimLock.aligned(0.0F, 0.0F, 3.0F, 0.0F, 0.0F));
     }
 }

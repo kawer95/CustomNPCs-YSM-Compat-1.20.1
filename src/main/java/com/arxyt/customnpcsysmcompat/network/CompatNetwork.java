@@ -10,7 +10,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraftforge.network.PacketDistributor;
 
 public final class CompatNetwork {
-    private static final String PROTOCOL = "2";
+    private static final String PROTOCOL = "3";
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(CustomNpcsYsmCompat.MOD_ID, "main"), () -> PROTOCOL,
             NetworkRegistry.acceptMissingOr(PROTOCOL), PROTOCOL::equals);
@@ -23,6 +23,8 @@ public final class CompatNetwork {
                 MaidTweakMessage::decode, MaidTweakMessage::handle);
         CHANNEL.registerMessage(1, NpcActionStateMessage.class, NpcActionStateMessage::encode,
                 NpcActionStateMessage::decode, NpcActionStateMessage::handle);
+        CHANNEL.registerMessage(2, NpcAimStateMessage.class, NpcAimStateMessage::encode,
+                NpcAimStateMessage::decode, NpcAimStateMessage::handle);
     }
 
     public static void sendMaidTweak(MaidTweakMessage message) {
@@ -39,6 +41,11 @@ public final class CompatNetwork {
 
     public static void sendActionState(ServerPlayer player, NpcActionStateMessage message) {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), message);
+    }
+
+    public static void sendAimState(Entity entity, float yaw, float bodyYaw, float headYaw, float pitch) {
+        CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> entity),
+                new NpcAimStateMessage(entity.getId(), yaw, bodyYaw, headYaw, pitch));
     }
 
     /**
