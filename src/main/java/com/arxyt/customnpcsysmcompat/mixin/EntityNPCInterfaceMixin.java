@@ -35,9 +35,11 @@ public abstract class EntityNPCInterfaceMixin extends PathfinderMob {
             // native movement/look tasks otherwise prevent the general gun goal from ticking.
             goalSelector.addGoal(-1, new YsmTaczWatchGunGoal((EntityNPCInterface) (Object) this));
             goalSelector.addGoal(0, new YsmTaczGunGoal((EntityNPCInterface) (Object) this));
-            // The normal gun goal owns MOVE and is intentionally disabled by Dominion's
-            // HOLD policy. This LOOK-only goal can keep firing without reopening movement.
-            goalSelector.addGoal(0, new YsmTaczSentryGunGoal((EntityNPCInterface) (Object) this));
+            // The normal gun goal moves during combat. This dedicated goal instead owns MOVE
+            // as a lock while an otherwise idle NPC acquires and fires from its current place.
+            // This goal owns MOVE as a lock: idle automatic combat must finish in place rather
+            // than racing CNPC's pursuit or wander goals. Passenger NPCs are excluded in-goal.
+            goalSelector.addGoal(-2, new YsmTaczSentryGunGoal((EntityNPCInterface) (Object) this));
         }
     }
 

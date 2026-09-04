@@ -35,6 +35,7 @@ public final class YsmTaczGunGoal extends Goal {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
         LivingEntity target = target(command);
         return GunCompat.active(npc) && target != null && target.isAlive()
+                && (command.active() || !npc.isPassenger())
                 && !command.nativeCombatBlocked()
                 && (command.commandedAttack() || npc.distanceTo(target) <= effectiveRange());
     }
@@ -46,6 +47,7 @@ public final class YsmTaczGunGoal extends Goal {
         // Do not tear down an in-progress reload merely because strafing briefly moved the
         // NPC across the preferred range boundary. The goal itself can navigate back.
         return GunCompat.active(npc) && target != null && target.isAlive()
+                && (command.active() || !npc.isPassenger())
                 && !command.nativeCombatBlocked();
     }
 
