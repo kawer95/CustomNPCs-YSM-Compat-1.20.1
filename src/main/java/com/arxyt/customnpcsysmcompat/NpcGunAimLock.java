@@ -137,7 +137,8 @@ public final class NpcGunAimLock {
         CompatNetwork.sendAimState(npc, npc.getYRot(), npc.yBodyRot, npc.getYHeadRot(), npc.getXRot());
     }
 
-    private static void clear(EntityNPCInterface npc) {
+    /** Releases the completed engagement's transient aim state before return locomotion begins. */
+    public static void clear(EntityNPCInterface npc) {
         AimState removed = npc == null ? null : STATES.remove(npc);
         if (removed != null && removed.forcedLook && npc.lookAi != null) npc.lookAi.stop();
     }

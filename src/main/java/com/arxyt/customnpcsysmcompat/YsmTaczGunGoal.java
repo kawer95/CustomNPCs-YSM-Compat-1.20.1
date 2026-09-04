@@ -97,6 +97,9 @@ public final class YsmTaczGunGoal extends Goal {
     public void tick() {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
         LivingEntity target = target(command, true);
+        // A new target cancels return locomotion in the same server tick. Never let the return
+        // sprint marker leak into reload, firing, close-range retreat or stationary aiming.
+        if (target != null) AutonomousReturnSprint.deactivate(npc);
         GunCompatFacade facade = GunCompat.facade();
         if (facade == null) {
             return;
@@ -340,7 +343,14 @@ public final class YsmTaczGunGoal extends Goal {
         // Keep full return speed right up to the one-block arrival boundary. Do not pass this
         // through the ordinary command-distance pace selector, which intentionally downgrades
         // nearby movement to walking and makes a displaced sentry take too long to recover.
-        AutonomousReturnSprint.activate(npc);
+        if (AutonomousReturnSprint.activate(npc)) {
+            // This goal intentionally stays selected during return, so its normal stop() hook
+            // does not release TaCZ ADS. End the completed engagement here; otherwise YSM keeps
+            // displaying the gun aim loop and the legs appear to walk in place despite sprint.
+            GunCompatFacade facade = GunCompat.facade();
+            if (facade != null) facade.stop(npc, true);
+            NpcGunAimLock.clear(npc);
+        }
         npc.getMoveControl().strafe(0.0F, 0.0F);
         npc.getNavigation().moveTo(autonomousOrigin.x, autonomousOrigin.y, autonomousOrigin.z,
                 RETURN_NAVIGATION_SPEED);
