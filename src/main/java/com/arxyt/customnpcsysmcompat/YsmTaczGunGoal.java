@@ -3,6 +3,7 @@ package com.arxyt.customnpcsysmcompat;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.phys.Vec3;
 import noppes.npcs.entity.EntityNPCInterface;
 
 import java.util.EnumSet;
@@ -24,6 +25,11 @@ public final class YsmTaczGunGoal extends Goal {
     private double lastTraceZ;
     private boolean tracePositionReady;
     private boolean wasRetreating;
+    private Vec3 autonomousOrigin;
+    private LivingEntity autonomousTarget;
+    private boolean autonomousEngagement;
+    private boolean returningToOrigin;
+    private int nextAutonomousScanTick;
 
     public YsmTaczGunGoal(EntityNPCInterface npc) {
         this.npc = npc;
@@ -33,22 +39,24 @@ public final class YsmTaczGunGoal extends Goal {
     @Override
     public boolean canUse() {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
-        LivingEntity target = target(command);
-        return GunCompat.active(npc) && target != null && target.isAlive()
-                && (command.active() || !npc.isPassenger())
-                && !command.nativeCombatBlocked()
-                && (command.commandedAttack() || npc.distanceTo(target) <= effectiveRange());
+        if (!GunCompat.active(npc) || command.nativeCombatBlocked()
+                || command.prone() || command.watching()) return false;
+        LivingEntity target = target(command, true);
+        // Acquisition range and weapon range are different. A target found within the fixed
+        // 16-block alert radius must start this goal even when this NPC's configured gun range
+        // is shorter; the movement phase will pursue until the weapon can legally fire.
+        return (target != null && target.isAlive()) || (!command.active() && returningToOrigin);
     }
 
     @Override
     public boolean canContinueToUse() {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
-        LivingEntity target = target(command);
+        LivingEntity target = target(command, true);
         // Do not tear down an in-progress reload merely because strafing briefly moved the
         // NPC across the preferred range boundary. The goal itself can navigate back.
-        return GunCompat.active(npc) && target != null && target.isAlive()
-                && (command.active() || !npc.isPassenger())
-                && !command.nativeCombatBlocked();
+        return GunCompat.active(npc) && !command.nativeCombatBlocked()
+                && !command.prone() && !command.watching()
+                && ((target != null && target.isAlive()) || (!command.active() && returningToOrigin));
     }
 
     @Override
@@ -85,7 +93,7 @@ public final class YsmTaczGunGoal extends Goal {
     @Override
     public void tick() {
         DominionCommandBridge.Snapshot command = DominionCommandBridge.snapshot(npc);
-        LivingEntity target = target(command);
+        LivingEntity target = target(command, true);
         GunCompatFacade facade = GunCompat.facade();
         if (facade == null) {
             return;
@@ -98,7 +106,10 @@ public final class YsmTaczGunGoal extends Goal {
             npc.getMoveControl().strafe(0.0F, 0.0F);
             return;
         }
-        if (target == null) return;
+        if (target == null) {
+            tickReturnToOrigin(command);
+            return;
+        }
         if (command.commandedAttack() && npc.getTarget() != target) npc.setTarget(target);
         DominionCombatBalance.Settings settings = DominionCombatBalance.settings();
         if (NpcGunTargetReaction.blocks(npc, target, settings,
@@ -184,19 +195,12 @@ public final class YsmTaczGunGoal extends Goal {
             strafeTime = -1;
             npc.getNavigation().moveTo(target, 1.0D);
         } else {
+            npc.setSprinting(false);
             npc.getNavigation().stop();
-            if (++strafeTime >= 20) {
-                if (npc.getRandom().nextFloat() < 0.3F) clockwise = !clockwise;
-                if (npc.getRandom().nextFloat() < 0.3F) backwards = !backwards;
-                strafeTime = 0;
-            }
-            if (distance > desired * 0.65D) backwards = false;
-            else if (distance < desired * 0.60D) backwards = true;
-            retreating = backwards;
-            maneuverName = backwards ? "NATIVE_RETREAT" : "NATIVE_STRAFE";
-            npc.getMoveControl().strafe(
-                    (float) (backwards ? -YsmTaczConfig.FORWARD_SPEED.get() : YsmTaczConfig.FORWARD_SPEED.get()),
-                    (float) (clockwise ? YsmTaczConfig.SIDEWAYS_SPEED.get() : -YsmTaczConfig.SIDEWAYS_SPEED.get()));
+            retreating = distance < 10.0D;
+            maneuverName = retreating ? "AUTONOMOUS_RETREAT" : "AUTONOMOUS_HOLD";
+            npc.getMoveControl().strafe(retreating ? -0.5F : 0.0F, 0.0F);
+            if (retreating) faceTargetWhileRetreating(target);
         }
 
         traceRetreat(target, retreating, maneuverName, distance, desired, canSee, command);
@@ -271,8 +275,74 @@ public final class YsmTaczGunGoal extends Goal {
         NpcGunAimLock.alignForShot(npc, target);
     }
 
-    private LivingEntity target(DominionCommandBridge.Snapshot command) {
-        return command.active() ? command.attackTarget() : npc.getTarget();
+    private LivingEntity target(DominionCommandBridge.Snapshot command, boolean acquire) {
+        if (command.active() && command.attackTarget() != null) {
+            clearAutonomousState();
+            return command.attackTarget();
+        }
+        boolean stationary = command.stationarySentry();
+        if (command.active() && !stationary || npc.isPassenger()) {
+            if (npc.getTarget() == autonomousTarget) npc.setTarget(null);
+            clearAutonomousState();
+            return null;
+        }
+
+        LivingEntity current = npc.getTarget();
+        if (current != autonomousTarget && !IdleNpcTargeting.valid(npc, current)) {
+            if (current != null) npc.setTarget(null);
+            current = null;
+        }
+        // CNPC can acquire a target before this goal's staggered scan. Treat it exactly like a
+        // target found here, otherwise TaCZ clearing npc.getTarget() at reload start would lose
+        // the entire autonomous engagement and no post-reload shot could ever resume it.
+        if (current != null && current != autonomousTarget) {
+            if (!stationary && !autonomousEngagement) autonomousOrigin = npc.position();
+            autonomousEngagement = !stationary;
+            returningToOrigin = false;
+            autonomousTarget = current;
+        }
+        if (!IdleNpcTargeting.engaged(npc, current, effectiveRange())
+                && IdleNpcTargeting.engaged(npc, autonomousTarget, effectiveRange())) {
+            current = autonomousTarget;
+            npc.setTarget(current);
+        }
+        if (!IdleNpcTargeting.engaged(npc, current, effectiveRange())) {
+            if (current != null && autonomousEngagement) npc.setTarget(null);
+            current = null;
+        }
+        if (current == null && acquire && npc.tickCount >= nextAutonomousScanTick) {
+            nextAutonomousScanTick = npc.tickCount + 5 + Math.floorMod(npc.getId(), 5);
+            current = IdleNpcTargeting.find(npc);
+            if (current != null) {
+                if (!stationary && !autonomousEngagement) autonomousOrigin = npc.position();
+                autonomousEngagement = !stationary;
+                returningToOrigin = false;
+                autonomousTarget = current;
+                npc.setTarget(current);
+            }
+        }
+        if (current == null && autonomousEngagement && !stationary) returningToOrigin = true;
+        return current;
+    }
+
+    private void tickReturnToOrigin(DominionCommandBridge.Snapshot command) {
+        if (command.active() || !returningToOrigin || autonomousOrigin == null || npc.isPassenger()) return;
+        if (npc.position().distanceToSqr(autonomousOrigin) <= 1.0D) {
+            npc.getNavigation().stop();
+            npc.getMoveControl().strafe(0.0F, 0.0F);
+            clearAutonomousState();
+            return;
+        }
+        npc.setSprinting(false);
+        npc.getMoveControl().strafe(0.0F, 0.0F);
+        npc.getNavigation().moveTo(autonomousOrigin.x, autonomousOrigin.y, autonomousOrigin.z, 1.0D);
+    }
+
+    private void clearAutonomousState() {
+        autonomousOrigin = null;
+        autonomousTarget = null;
+        autonomousEngagement = false;
+        returningToOrigin = false;
     }
 
     private double effectiveRange() {

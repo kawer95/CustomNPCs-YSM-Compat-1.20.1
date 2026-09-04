@@ -2,7 +2,6 @@ package com.arxyt.customnpcsysmcompat.mixin;
 
 import com.arxyt.customnpcsysmcompat.YsmTaczGunGoal;
 import com.arxyt.customnpcsysmcompat.YsmTaczProneGunGoal;
-import com.arxyt.customnpcsysmcompat.YsmTaczSentryGunGoal;
 import com.arxyt.customnpcsysmcompat.YsmTaczWatchGunGoal;
 import com.arxyt.customnpcsysmcompat.NpcGunAimLock;
 import com.arxyt.customnpcsysmcompat.animation.DelayedMeleeAttack;
@@ -34,12 +33,9 @@ public abstract class EntityNPCInterfaceMixin extends PathfinderMob {
             // A stationary standing watch has the same arbitration requirement: CustomNPCs'
             // native movement/look tasks otherwise prevent the general gun goal from ticking.
             goalSelector.addGoal(-1, new YsmTaczWatchGunGoal((EntityNPCInterface) (Object) this));
-            goalSelector.addGoal(0, new YsmTaczGunGoal((EntityNPCInterface) (Object) this));
-            // The normal gun goal moves during combat. This dedicated goal instead owns MOVE
-            // as a lock while an otherwise idle NPC acquires and fires from its current place.
-            // This goal owns MOVE as a lock: idle automatic combat must finish in place rather
-            // than racing CNPC's pursuit or wander goals. Passenger NPCs are excluded in-goal.
-            goalSelector.addGoal(-2, new YsmTaczSentryGunGoal((EntityNPCInterface) (Object) this));
+            // The complete gun-combat goal owns MOVE and LOOK at high priority. It yields
+            // explicitly to prone/watch, while ordinary CNPC AI cannot starve idle combat.
+            goalSelector.addGoal(-2, new YsmTaczGunGoal((EntityNPCInterface) (Object) this));
         }
     }
 
