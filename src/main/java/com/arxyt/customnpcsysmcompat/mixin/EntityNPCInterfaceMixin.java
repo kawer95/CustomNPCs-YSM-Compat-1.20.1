@@ -4,6 +4,7 @@ import com.arxyt.customnpcsysmcompat.YsmTaczGunGoal;
 import com.arxyt.customnpcsysmcompat.YsmTaczProneGunGoal;
 import com.arxyt.customnpcsysmcompat.YsmTaczWatchGunGoal;
 import com.arxyt.customnpcsysmcompat.NpcGunAimLock;
+import com.arxyt.customnpcsysmcompat.AutonomousReturnSprint;
 import com.arxyt.customnpcsysmcompat.animation.DelayedMeleeAttack;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import net.minecraft.world.entity.Entity;
@@ -47,7 +48,10 @@ public abstract class EntityNPCInterfaceMixin extends PathfinderMob {
     @Inject(method = "m_8119_", at = @At("TAIL"), remap = false, require = 0)
     private void customnpcsYsmCompat$maintainCommandGunAim(CallbackInfo ci) {
         if (!level().isClientSide) {
-            NpcGunAimLock.maintain((EntityNPCInterface) (Object) this);
+            EntityNPCInterface npc = (EntityNPCInterface) (Object) this;
+            NpcGunAimLock.maintain(npc);
+            // Keep the synchronized sprint flag after CNPC's own late animation-state rewrite.
+            AutonomousReturnSprint.maintain(npc);
         }
     }
 

@@ -333,20 +333,21 @@ public final class YsmTaczGunGoal extends Goal {
         if (npc.position().distanceToSqr(autonomousOrigin) <= RETURN_ARRIVAL_DISTANCE_SQR) {
             npc.getNavigation().stop();
             npc.getMoveControl().strafe(0.0F, 0.0F);
-            npc.setSprinting(false);
+            AutonomousReturnSprint.deactivate(npc);
             clearAutonomousState();
             return;
         }
         // Keep full return speed right up to the one-block arrival boundary. Do not pass this
         // through the ordinary command-distance pace selector, which intentionally downgrades
         // nearby movement to walking and makes a displaced sentry take too long to recover.
-        npc.setSprinting(true);
+        AutonomousReturnSprint.activate(npc);
         npc.getMoveControl().strafe(0.0F, 0.0F);
         npc.getNavigation().moveTo(autonomousOrigin.x, autonomousOrigin.y, autonomousOrigin.z,
                 RETURN_NAVIGATION_SPEED);
     }
 
     private void clearAutonomousState() {
+        AutonomousReturnSprint.deactivate(npc);
         autonomousOrigin = null;
         autonomousTarget = null;
         autonomousEngagement = false;
