@@ -179,6 +179,7 @@ public final class Tacz115Compat implements GunCompatFacade {
 
     @Override
     public Action continueWatchFire(EntityNPCInterface shooter) {
+        if (!NpcGunAimLock.mayContinueFire(shooter)) return Action.waitFor(1);
         WatchTriggerState state = watchTriggers.get(shooter);
         ItemStack stack = shooter.getMainHandItem();
         IGun gun = IGun.getIGunOrNull(stack);

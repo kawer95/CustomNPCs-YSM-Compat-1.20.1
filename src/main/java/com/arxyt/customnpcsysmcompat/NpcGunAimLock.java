@@ -61,6 +61,17 @@ public final class NpcGunAimLock {
                 ? new AimSolution(yaw, pitch, true) : AimSolution.INVALID;
     }
 
+    /** Prevents retained machine-gun trigger state from firing along the previous target angle. */
+    public static boolean mayContinueFire(EntityNPCInterface npc) {
+        if (npc == null) return false;
+        AimState state = STATES.get(npc);
+        LivingEntity current = npc.getTarget();
+        return state != null && current != null && current.isAlive()
+                && current.getUUID().equals(state.targetId)
+                && aligned(npc.yBodyRot, npc.getYHeadRot(), npc.getXRot(),
+                state.solution.yaw(), state.solution.pitch());
+    }
+
     static float targetYaw(double dx, double dz) {
         if (!Double.isFinite(dx) || !Double.isFinite(dz) || dx * dx + dz * dz < 1.0E-8D) return Float.NaN;
         return (float) -Math.toDegrees(Math.atan2(dx, dz));
