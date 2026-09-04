@@ -222,9 +222,8 @@ public final class Tacz115Compat implements GunCompatFacade {
         return result;
     }
 
-    /** Preserves sprint for movement animation, but makes a requested shot leave it immediately. */
+    /** Clears TaCZ's shot gate without overwriting command-owned locomotion animation state. */
     private static void prepareImmediateFire(EntityNPCInterface shooter, IGunOperator operator) {
-        shooter.setSprinting(false);
         operator.getDataHolder().sprintTimeS = 0.0F;
         operator.getDataHolder().sprintTimestamp = System.currentTimeMillis();
     }

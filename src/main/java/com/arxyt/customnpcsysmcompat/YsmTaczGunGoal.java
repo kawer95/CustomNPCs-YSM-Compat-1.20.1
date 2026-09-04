@@ -205,10 +205,6 @@ public final class YsmTaczGunGoal extends Goal {
                 canFire ? "READY" : !facingReady ? "AIM_TURNING" : "NO_CLEAR_SHOT");
         if (canFire && --actionCooldown <= 0) {
             try {
-                // TaCZ rejects a fire request while sprinting.  A command may have just
-                // crossed the firing boundary, so clear the replicated sprint state before
-                // handing the shot to the weapon facade.
-                if (command.active()) npc.setSprinting(false);
                 GunCompatFacade.Action action = facade.operate(npc, target);
                 actionCooldown = action.delayTicks();
                 if (command.watching()) {
