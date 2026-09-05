@@ -12,10 +12,11 @@ import com.arxyt.customnpcsysmcompat.animation.NpcMovementTracker;
 import com.arxyt.customnpcsysmcompat.animation.MeleeAttackSync;
 import com.arxyt.customnpcsysmcompat.animation.NpcOrientationTracker;
 import com.arxyt.customnpcsysmcompat.animation.NpcHurtState;
+import com.arxyt.customnpcsysmcompat.api.EntitySharedFlagAccess;
+import com.arxyt.customnpcsysmcompat.client.render.PoseStackScope;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayAccess;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import com.arxyt.customnpcsysmcompat.data.YsmTweakProfile;
-import com.arxyt.customnpcsysmcompat.mixin.EntitySharedFlagAccessor;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -73,7 +74,7 @@ public final class AnimatedNpcRenderBridge {
             return true;
         }
 
-        try {
+        try (PoseStackScope ignored = PoseStackScope.capture(poseStack)) {
             AnimatedProxy holder = readyProxy(npc, selected);
             if (holder == null) return false;
             ensureSynced(holder, npc);
@@ -358,7 +359,7 @@ public final class AnimatedNpcRenderBridge {
     private static boolean vanillaInvisible(Entity entity) {
         // Vanilla Entity#isInvisible reads shared flag 5, but CustomNPC overrides that method
         // with display-mode semantics. The shared flag remains the authoritative potion state.
-        return ((EntitySharedFlagAccessor) entity).customnpcsYsmCompat$getSharedFlag(5);
+        return ((EntitySharedFlagAccess) entity).customnpcsYsmCompat$getSharedFlag(5);
     }
 
     private static float proxyHealth(RemotePlayer player) {

@@ -1,11 +1,13 @@
 package com.arxyt.customnpcsysmcompat.mixin.client;
 
+import com.arxyt.customnpcsysmcompat.client.YsmMaidScreenAccess;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(targets = "com.elfmcys.yesstevemodel.O00O00O0oOooOoooOOoO0oo0", remap = false)
-public interface YsmMaidScreenAccessor {
+public interface YsmMaidScreenAccessor extends YsmMaidScreenAccess {
+    @Override
     @Accessor("O00OOOooOoooOoo0o0o0oO0O")
     EntityMaid customnpcsYsmCompat$getMaid();
 }

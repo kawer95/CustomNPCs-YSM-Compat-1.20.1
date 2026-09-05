@@ -3,8 +3,6 @@ package com.arxyt.customnpcsysmcompat.client;
 import com.arxyt.customnpcsysmcompat.api.IYsmMaidTweakData;
 import com.arxyt.customnpcsysmcompat.data.YsmDisplayData;
 import com.arxyt.customnpcsysmcompat.data.YsmTweakProfile;
-import com.arxyt.customnpcsysmcompat.mixin.client.YsmMaidScreenAccessor;
-import com.arxyt.customnpcsysmcompat.mixin.client.YsmMaidConfigScreenAccessor;
 import com.arxyt.customnpcsysmcompat.network.CompatNetwork;
 import com.arxyt.customnpcsysmcompat.network.MaidTweakMessage;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
@@ -19,9 +17,7 @@ public final class YsmMaidTweakClient {
     public static boolean captureScreenExpression(String expression) {
         Screen screen = Minecraft.getInstance().screen;
         EntityMaid maid;
-        if (screen instanceof YsmMaidScreenAccessor accessor) {
-            maid = accessor.customnpcsYsmCompat$getMaid();
-        } else if (screen instanceof YsmMaidConfigScreenAccessor accessor) {
+        if (screen instanceof YsmMaidScreenAccess accessor) {
             maid = accessor.customnpcsYsmCompat$getMaid();
         } else {
             return false;

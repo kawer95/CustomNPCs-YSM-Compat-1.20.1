@@ -17,6 +17,7 @@
     "client.CustomNpcRendererYsmMixin",
     "client.GuiCreationEntitiesMixin",
     "client.ChatMessagesDepthMixin",
+    "client.PoseStackDepthMixin",
     "client.GuiMpmPartMixin",
     "client.MpmPartAbstractClientMixin",
     "client.TaczBulletRendererMixin",

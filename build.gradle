@@ -90,4 +90,27 @@ tasks.named('jar', Jar).configure {
     from('LICENSE') { into 'META-INF' }
     finalizedBy 'reobfJar'
 }
+
+tasks.register('verifyMixinPackageIsolation') {
+    dependsOn tasks.named('jar')
+    doLast {
+        def mixinPrefix = 'com/arxyt/customnpcsysmcompat/mixin/'
+        def nestedMixinClasses = zipTree(tasks.named('jar', Jar).get().archiveFile.get().asFile)
+                .matching { include "${mixinPrefix}**/*\$*.class" }
+                .files
+        if (!nestedMixinClasses.empty) {
+            throw new GradleException("Nested/helper classes must not be emitted in the Mixin package: ${nestedMixinClasses*.name}")
+        }
+
+        def illegalImports = sourceSets.main.allJava.files.findAll { source ->
+            !source.path.replace('\\', '/').contains('/customnpcsysmcompat/mixin/')
+                    && source.getText('UTF-8').contains('import com.arxyt.customnpcsysmcompat.mixin')
+        }
+        if (!illegalImports.empty) {
+            throw new GradleException("Runtime code must not directly reference Mixin package classes: ${illegalImports*.path}")
+        }
+    }
+}
+
+tasks.named('check').configure { dependsOn tasks.named('verifyMixinPackageIsolation') }
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }

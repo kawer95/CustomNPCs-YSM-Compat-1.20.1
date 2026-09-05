@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.mixin.client;
 
 import com.arxyt.customnpcsysmcompat.client.NpcNameTagRenderContext;
+import com.arxyt.customnpcsysmcompat.client.render.DiscardingVertexConsumer;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -34,52 +35,5 @@ public abstract class ChatMessagesDepthMixin {
             return DiscardingVertexConsumer.INSTANCE;
         }
         return buffers.getBuffer(renderType);
-    }
-
-    /** A vertex sink keeps CustomNPCs' first bubble pass side-effect-free without changing it globally. */
-    private enum DiscardingVertexConsumer implements VertexConsumer {
-        INSTANCE;
-
-        @Override
-        public VertexConsumer vertex(double x, double y, double z) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer color(int red, int green, int blue, int alpha) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer uv(float u, float v) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer overlayCoords(int u, int v) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer uv2(int u, int v) {
-            return this;
-        }
-
-        @Override
-        public VertexConsumer normal(float x, float y, float z) {
-            return this;
-        }
-
-        @Override
-        public void endVertex() {
-        }
-
-        @Override
-        public void defaultColor(int red, int green, int blue, int alpha) {
-        }
-
-        @Override
-        public void unsetDefaultColor() {
-        }
     }
 }
