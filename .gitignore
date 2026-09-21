@@ -4,3 +4,4 @@ run/
 out/
 *.log
 .engineering/
+.codex-backups/
