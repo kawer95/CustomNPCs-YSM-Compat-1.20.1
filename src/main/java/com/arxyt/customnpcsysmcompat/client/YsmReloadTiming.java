@@ -1,6 +1,7 @@
 package com.arxyt.customnpcsysmcompat.client;
 
 import com.arxyt.customnpcsysmcompat.CustomNpcsYsmCompat;
+import com.arxyt.customnpcsysmcompat.VerboseDiagnostics;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.tacz.guns.api.entity.ReloadState;
@@ -19,7 +20,7 @@ final class YsmReloadTiming {
         float speed = reloadPlaybackSpeed(entity);
         boolean wasActive = clock.active();
         clock.target(active, speed);
-        if (active != wasActive) {
+        if (VerboseDiagnostics.enabled() && active != wasActive) {
             CustomNpcsYsmCompat.LOGGER.info(
                     "[YSM-RELOAD-TIMING] entityId={} entityType={} active={} playbackSpeed={}",
                     entity.getId(), entity.getType(), active, clock.speed());
